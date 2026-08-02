@@ -1,0 +1,11 @@
+{
+    "python-envs.defaultEnvManager": "ms-python.python:system",
+    "cSpell.language": "en,fr",
+    "cSpell.dictionaries": [
+        "en_US",
+        "fr-fr"
+    ],
+    "cSpell.words": [
+        "COLLECTIVITE"
+    ]
+}

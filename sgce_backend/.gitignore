@@ -1,0 +1,19 @@
+# Environnement virtuel Python
+venv/
+
+# Variables d'environnement et secrets
+.env
+
+# Cache Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Base de données locale
+db.sqlite3
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
