@@ -1,8 +1,44 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.db.models import F
 from django.utils import timezone
+
+
+class SequenceCounter(models.Model):
+    """
+    Compteur atomique partage, utilise pour generer des numeros metier
+    sequentiels (Commande.numero, DossierFabrication.numero_dossier,
+    Facture.numero_facture) sans condition de concurrence.
+
+    Correctif : l'ancien pattern `Modele.objects.filter(...).count() + 1`
+    n'est pas atomique - deux creations simultanees peuvent lire le meme
+    compte avant l'ecriture et calculer le meme numero, ce qui declenche une
+    IntegrityError (contrainte unique) au lieu de produire un numero valide.
+    `prochain()` verrouille la ligne du compteur (select_for_update) et
+    l'incremente dans une transaction, garantissant l'unicite meme sous
+    acces concurrents.
+    """
+
+    cle = models.CharField(max_length=30, unique=True)
+    valeur = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "sequences_compteurs"
+
+    def __str__(self):
+        return f"{self.cle} = {self.valeur}"
+
+    @classmethod
+    def prochain(cls, cle):
+        with transaction.atomic():
+            compteur, _ = cls.objects.select_for_update().get_or_create(
+                cle=cle, defaults={"valeur": 0}
+            )
+            compteur.valeur = F("valeur") + 1
+            compteur.save(update_fields=["valeur"])
+            compteur.refresh_from_db(fields=["valeur"])
+            return compteur.valeur
 
 
 class OrganismeClient(models.Model):
@@ -53,12 +89,25 @@ class Commande(models.Model):
         SPA = "SPA", "Service de Production A"
         SPB = "SPB", "Service de Production B"
 
+    class Nature(models.TextChoices):
+        SUR_CONFECTION = "SUR_CONFECTION", "Sur confection (sur-mesure)"
+        STANDARDISEE = "STANDARDISEE", "Standardisée (prix fixe)"
+
     numero = models.CharField(max_length=15, unique=True, blank=True)
     date_commande = models.DateTimeField(auto_now_add=True)
     statut = models.CharField(max_length=20, choices=Statut.choices, default=Statut.EN_ATTENTE)
     delai_contractuel = models.DateField(
         null=True, blank=True,
         help_text="Obligatoire pour les commandes étatiques soumises à marché public (RG19).",
+    )
+
+    nature = models.CharField(
+        max_length=20, choices=Nature.choices, default=Nature.STANDARDISEE,
+        help_text=(
+            "Distingue le circuit de devis applique : sur confection (devis "
+            "au cas par cas) ou standardisee (prix unitaire fixe). Fixee a "
+            "la creation et non modifiable apres validation du devis (RG21)."
+        ),
     )
 
     type_document = models.CharField(
@@ -100,7 +149,7 @@ class Commande(models.Model):
     def save(self, *args, **kwargs):
         if not self.numero:
             annee = timezone.now().year
-            compteur = Commande.objects.filter(date_commande__year=annee).count() + 1
+            compteur = SequenceCounter.prochain(f"CMD-{annee}")
             self.numero = f"CMD-{annee}-{compteur:04d}"
         super().save(*args, **kwargs)
 
@@ -109,7 +158,15 @@ class Devis(models.Model):
     """
     Devis associe a une commande (RG3). Seul un Agent SDO peut le valider
     (RG16) - controle applique au niveau des vues/permissions.
+
+    Pour un marche public a prix fixe pluriannuel (jusqu'a 5 ans), le taux
+    d'inflation projete doit etre renseigne avant validation (RG22), afin
+    d'equilibrer le prix unitaire sur toute la duree du contrat plutot que
+    de le figer sur le seul cout actuel (risque de perte des l'annee 2-3,
+    ou de prix hors marche des le depart).
     """
+
+    DUREE_CONTRAT_MAX_ANNEES = 5
 
     commande = models.OneToOneField(Commande, on_delete=models.CASCADE, related_name="devis")
     prix_revient = models.DecimalField(max_digits=12, decimal_places=2)
@@ -124,11 +181,39 @@ class Devis(models.Model):
         related_name="devis_valides",
     )
 
+    pluriannuel = models.BooleanField(
+        default=False,
+        help_text="Marché public à prix unitaire fixe sur plusieurs années.",
+    )
+    duree_contrat_annees = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text=f"Durée du contrat à prix fixe, en années (maximum {DUREE_CONTRAT_MAX_ANNEES}).",
+    )
+    taux_inflation_projete = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="Taux d'inflation annuel moyen projeté (%), calculé sur l'historique des 5 dernières années.",
+    )
+
     class Meta:
         db_table = "devis"
 
     def __str__(self):
         return f"Devis de {self.commande.numero}"
+
+    def clean(self):
+        if self.pluriannuel:
+            if not self.duree_contrat_annees:
+                raise ValidationError(
+                    "La durée du contrat est obligatoire pour un devis pluriannuel (RG22)."
+                )
+            if self.duree_contrat_annees > self.DUREE_CONTRAT_MAX_ANNEES:
+                raise ValidationError(
+                    f"La durée d'un marché à prix fixe ne peut excéder {self.DUREE_CONTRAT_MAX_ANNEES} ans (RG22)."
+                )
+            if self.taux_inflation_projete is None:
+                raise ValidationError(
+                    "Le taux d'inflation projeté est obligatoire pour valider un devis pluriannuel (RG22)."
+                )
 
 
 class Atelier(models.Model):
@@ -181,7 +266,7 @@ class DossierFabrication(models.Model):
     def save(self, *args, **kwargs):
         if not self.numero_dossier:
             annee = timezone.now().year
-            compteur = DossierFabrication.objects.filter(date_creation__year=annee).count() + 1
+            compteur = SequenceCounter.prochain(f"DOS-{annee}")
             self.numero_dossier = f"DOS-{annee}-{compteur:04d}"
         super().save(*args, **kwargs)
 

@@ -68,6 +68,12 @@ class DevisCreateView(generics.CreateAPIView):
     """
     Creation du devis d'une commande - reservee a l'Agent SDO (RG16).
     Calcule automatiquement une estimation intelligente des couts (RG4).
+
+    Si le devis est marque comme pluriannuel (`pluriannuel=true`), et que
+    le taux d'inflation projete n'a pas ete fourni explicitement, il est
+    calcule automatiquement a partir de l'historique interne de l'INM, et
+    le prix de vente est ajuste vers un prix unitaire equilibre sur toute
+    la duree du contrat (RG22).
     """
 
     queryset = Devis.objects.all()
@@ -78,6 +84,7 @@ class DevisCreateView(generics.CreateAPIView):
         devis = serializer.save()
 
         from apps.ia.ml.estimation_service import predire_cout
+        from apps.ia.ml.inflation_service import projeter_devis_pluriannuel
         from apps.ia.models import EstimationIA
 
         resultat = predire_cout(
@@ -93,6 +100,16 @@ class DevisCreateView(generics.CreateAPIView):
                 "version_modele": resultat["version_modele"],
             },
         )
+
+        if devis.pluriannuel and devis.duree_contrat_annees:
+            projection = projeter_devis_pluriannuel(
+                prix_revient_actuel=devis.prix_vente,
+                duree_annees=devis.duree_contrat_annees,
+                taux_inflation_pct=devis.taux_inflation_projete,  # None -> calcule automatiquement
+            )
+            devis.taux_inflation_projete = projection["taux_inflation_projete"]
+            devis.prix_vente = projection["prix_vente_equilibre"]
+            devis.save(update_fields=["taux_inflation_projete", "prix_vente"])
 
 
 class DevisDetailView(generics.RetrieveUpdateAPIView):
@@ -169,15 +186,68 @@ class DossierFabricationDetailView(generics.RetrieveUpdateAPIView):
 
 
 class EtapeProductionListCreateView(generics.ListCreateAPIView):
-    queryset = EtapeProduction.objects.select_related("dossier").all()
+    """
+    Liste des etapes de production. Correctif : la lecture etait reservee au
+    seul Chef d'atelier (IsChefAtelier), empechant l'Agent SDO ou le
+    Magasinier de consulter l'avancement - desormais ouverte a tout
+    utilisateur authentifie, comme pour les dossiers de fabrication.
+    La creation reste reservee au Chef d'atelier (et l'Admin), et un Chef
+    d'atelier ne voit/ne peut creer que les etapes des dossiers de son
+    propre atelier (correctif : aucune verification d'appartenance
+    n'existait auparavant).
+    """
+
+    queryset = EtapeProduction.objects.select_related("dossier", "dossier__atelier").all()
     serializer_class = EtapeProductionSerializer
-    permission_classes = [IsChefAtelier]
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            return [IsChefAtelier()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if getattr(user, "role", None) == "CHEF_ATELIER":
+            qs = qs.filter(dossier__atelier__chef_atelier=user)
+        return qs
+
+    def perform_create(self, serializer):
+        dossier = serializer.validated_data.get("dossier")
+        user = self.request.user
+        est_admin = getattr(user, "role", None) == "ADMIN"
+        est_chef_du_bon_atelier = dossier and dossier.atelier.chef_atelier_id == user.id
+
+        if not (est_admin or est_chef_du_bon_atelier):
+            raise PermissionDenied(
+                "Seul le chef de l'atelier concerné (ou l'Administrateur) peut ajouter une étape à ce dossier (RG17)."
+            )
+        serializer.save()
 
 
 class EtapeProductionDetailView(generics.RetrieveUpdateAPIView):
-    queryset = EtapeProduction.objects.select_related("dossier").all()
+    """
+    Consultation et mise a jour d'une etape de production. Correctif :
+    lecture ouverte a tout utilisateur authentifie ; la modification reste
+    reservee au Chef d'atelier proprietaire du dossier (ou l'Admin), verifie
+    explicitement comme pour DossierFabricationDetailView (RG17).
+    """
+
+    queryset = EtapeProduction.objects.select_related("dossier", "dossier__atelier").all()
     serializer_class = EtapeProductionSerializer
-    permission_classes = [IsChefAtelier]
+    permission_classes = [IsAuthenticated]
+
+    def perform_update(self, serializer):
+        etape = self.get_object()
+        user = self.request.user
+        est_admin = getattr(user, "role", None) == "ADMIN"
+        est_chef_du_bon_atelier = etape.dossier.atelier.chef_atelier_id == user.id
+
+        if not (est_admin or est_chef_du_bon_atelier):
+            raise PermissionDenied(
+                "Seul le chef de l'atelier concerné (ou l'Administrateur) peut modifier cette étape (RG17)."
+            )
+        serializer.save()
 
 
 # ------------------------------------------------------------------

@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     'apps.utilisateurs',
     'apps.facturation',
     'apps.ia',
+    'apps.notifications',
 ]
 
 MIDDLEWARE = [

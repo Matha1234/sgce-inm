@@ -34,6 +34,7 @@ class DevisSerializer(serializers.ModelSerializer):
         fields = [
             "id", "commande", "prix_revient", "prix_vente", "duree_production",
             "date_devis", "valide", "valide_par", "estimation_ia",
+            "pluriannuel", "duree_contrat_annees", "taux_inflation_projete",
         ]
         read_only_fields = ["date_devis", "valide_par", "estimation_ia"]
 
@@ -42,6 +43,30 @@ class DevisSerializer(serializers.ModelSerializer):
         if estimation is None:
             return None
         return EstimationIAResumeSerializer(estimation).data
+
+    def validate(self, attrs):
+        """RG22 : un devis pluriannuel doit porter une duree et un taux d'inflation avant validation."""
+        pluriannuel = attrs.get("pluriannuel", getattr(self.instance, "pluriannuel", False))
+        valide = attrs.get("valide", getattr(self.instance, "valide", False))
+
+        if pluriannuel and valide:
+            duree = attrs.get("duree_contrat_annees", getattr(self.instance, "duree_contrat_annees", None))
+            taux = attrs.get("taux_inflation_projete", getattr(self.instance, "taux_inflation_projete", None))
+            erreurs = {}
+            if not duree:
+                erreurs["duree_contrat_annees"] = "Obligatoire pour valider un devis pluriannuel (RG22)."
+            elif duree > Devis.DUREE_CONTRAT_MAX_ANNEES:
+                erreurs["duree_contrat_annees"] = (
+                    f"Ne peut excéder {Devis.DUREE_CONTRAT_MAX_ANNEES} ans (RG22)."
+                )
+            if taux is None:
+                erreurs["taux_inflation_projete"] = (
+                    "Le taux d'inflation projeté est obligatoire pour valider un devis pluriannuel (RG22)."
+                )
+            if erreurs:
+                raise serializers.ValidationError(erreurs)
+
+        return attrs
 
 
 class CommandeSerializer(serializers.ModelSerializer):
@@ -53,7 +78,7 @@ class CommandeSerializer(serializers.ModelSerializer):
         model = Commande
         fields = [
             "id", "numero", "date_commande", "statut", "delai_contractuel",
-            "type_document", "quantite", "atelier", "est_fictif",
+            "nature", "type_document", "quantite", "atelier", "est_fictif",
             "organisme", "organisme_nom", "cree_par", "devis", "a_un_dossier",
         ]
         read_only_fields = ["numero", "date_commande", "cree_par", "est_fictif"]
@@ -68,6 +93,23 @@ class CommandeSerializer(serializers.ModelSerializer):
             "delai_contractuel",
             getattr(self.instance, "delai_contractuel", None),
         )
+
+        # RG21 : la nature (sur confection / standardisee) determine le
+        # circuit de devis applique des la creation et ne peut plus changer
+        # une fois le devis valide, pour eviter d'appliquer retroactivement
+        # une autre logique de calcul a une commande deja engagee.
+        if self.instance is not None and "nature" in attrs:
+            devis = getattr(self.instance, "devis", None)
+            if devis is not None and devis.valide and attrs["nature"] != self.instance.nature:
+                raise serializers.ValidationError(
+                    {
+                        "nature": (
+                            "La nature de la commande ne peut plus être modifiée "
+                            "après validation du devis (RG21)."
+                        )
+                    }
+                )
+
         if (
             organisme
             and organisme.type != OrganismeClient.TypeOrganisme.PARTICULIER
@@ -112,6 +154,7 @@ class DossierFabricationSerializer(serializers.ModelSerializer):
             "atelier", "atelier_nom", "statut_production", "date_creation", "etapes",
         ]
         read_only_fields = ["numero_dossier", "date_creation"]
+        extra_kwargs = {"atelier": {"required": False}}
 
     def validate(self, attrs):
         """RG5 : dossier cree uniquement pour une commande validee, une seule fois."""
@@ -125,7 +168,42 @@ class DossierFabricationSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"commande": "Cette commande dispose déjà d'un dossier de fabrication (RG5)."}
                 )
+
+        # Correctif : Commande.atelier (texte, choisi des la creation de la
+        # commande pour l'estimation IA) et DossierFabrication.atelier (FK,
+        # affectation reelle - RG6) pouvaient diverger silencieusement car
+        # rien ne les reliait. Si l'atelier n'est pas explicitement fourni a
+        # la creation du dossier, on le derive de Commande.atelier plutot
+        # que de laisser un champ obligatoire echouer ou diverger.
+        if not attrs.get("atelier") and commande:
+            try:
+                attrs["atelier"] = Atelier.objects.get(nom=commande.atelier)
+            except Atelier.DoesNotExist:
+                raise serializers.ValidationError(
+                    {"atelier": f"Aucun atelier de référence pour « {commande.atelier} »."}
+                )
         return attrs
+
+    def create(self, validated_data):
+        dossier = super().create(validated_data)
+        self._synchroniser_atelier_commande(dossier)
+        return dossier
+
+    def update(self, instance, validated_data):
+        dossier = super().update(instance, validated_data)
+        self._synchroniser_atelier_commande(dossier)
+        return dossier
+
+    @staticmethod
+    def _synchroniser_atelier_commande(dossier):
+        """
+        Correctif : des qu'un dossier de fabrication existe, il devient la
+        source de verite pour l'atelier (RG6). On resynchronise
+        Commande.atelier pour eliminer toute divergence entre les deux champs.
+        """
+        nom_atelier = dossier.atelier.nom
+        if dossier.commande.atelier != nom_atelier:
+            Commande.objects.filter(pk=dossier.commande_id).update(atelier=nom_atelier)
 
 
 class ArticleSerializer(serializers.ModelSerializer):

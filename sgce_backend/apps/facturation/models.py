@@ -2,7 +2,7 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
-from apps.commandes.models import DossierFabrication
+from apps.commandes.models import DossierFabrication, SequenceCounter
 
 
 class Facture(models.Model):
@@ -42,8 +42,6 @@ class Facture(models.Model):
         if not self.numero_facture:
             annee = timezone.now().year
             prefixe = "PRO" if self.type_facture == self.TypeFacture.PROFORMA else "DEF"
-            compteur = Facture.objects.filter(
-                date_facture__year=annee, type_facture=self.type_facture
-            ).count() + 1
+            compteur = SequenceCounter.prochain(f"{prefixe}-{annee}")
             self.numero_facture = f"{prefixe}-{annee}-{compteur:04d}"
         super().save(*args, **kwargs)
