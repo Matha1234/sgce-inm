@@ -14,6 +14,7 @@ class Notification(models.Model):
         DOSSIER = "DOSSIER", "Dossier de fabrication"
         ETAPE = "ETAPE", "Étape de production"
         STOCK = "STOCK", "Stock"
+        CONTROLE = "CONTROLE", "Contrôle du prix de revient"
 
     destinataire = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications"

@@ -14,6 +14,7 @@ import DossierDetailPage from "./pages/DossierDetailPage";
 import StockPage from "./pages/StockPage";
 import UtilisateursPage from "./pages/UtilisateursPage";
 import FacturesListPage from "./pages/FacturesListPage";
+import ControlesListPage from "./pages/ControlesListPage";
 
 export default function App() {
   return (
@@ -32,7 +33,7 @@ export default function App() {
             <Route path="/factures" element={<FacturesListPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute rolesAutorises={["CHEF_ATELIER"]} />}>
+          <Route element={<ProtectedRoute rolesAutorises={["CHEF_ATELIER", "AGENT_SDO"]} />}>
             <Route path="/dossiers" element={<DossiersListPage />} />
             <Route path="/dossiers/:id" element={<DossierDetailPage />} />
           </Route>
@@ -43,6 +44,7 @@ export default function App() {
 
           <Route element={<ProtectedRoute rolesAutorises={[]} />}>
             <Route path="/utilisateurs" element={<UtilisateursPage />} />
+            <Route path="/rentabilite" element={<ControlesListPage />} />
           </Route>
         </Route>
       </Route>

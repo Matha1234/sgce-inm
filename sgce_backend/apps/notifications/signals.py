@@ -12,6 +12,7 @@ from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
 from apps.commandes.models import Commande, DossierFabrication, EtapeProduction
+from apps.controle.models import ControlePrixRevient
 from apps.utilisateurs.models import Utilisateur
 
 from .models import Notification
@@ -125,3 +126,40 @@ def _notifier_changement_statut_etape(sender, instance, created, **kwargs):
         f"statut passé à « {instance.get_statut_display()} »."
     )
     _notifier(destinataires, Notification.Categorie.ETAPE, message, instance.pk)
+
+
+# ---------------------------------------------------------------------
+# ControlePrixRevient
+# ---------------------------------------------------------------------
+@receiver(post_save, sender=ControlePrixRevient)
+def _notifier_controle_prix_revient(sender, instance, created, **kwargs):
+    """
+    RG18 étendu au contrôle du prix de revient : notifie l'Administrateur
+    et l'Agent SDO à l'origine de la commande dès qu'une fiche de contrôle
+    est établie, avec un message renforcé en cas d'écart significatif
+    (theme de stage, module "Contrôle du prix de revient et analyse de
+    rentabilité").
+    """
+    if not created:
+        return
+
+    dossier = instance.dossier
+    destinataires = list(_admins())
+    if dossier.commande.cree_par_id:
+        destinataires.append(dossier.commande.cree_par)
+
+    if instance.ecart_significatif:
+        message = (
+            f"Écart significatif détecté sur le dossier {dossier.numero_dossier} : "
+            f"résultat {instance.get_resultat_display().lower()} "
+            f"(marge réelle {instance.marge_reelle_pourcentage}% vs cible "
+            f"{instance.marge_cible_pourcentage}%)."
+        )
+    else:
+        message = (
+            f"Contrôle du prix de revient établi pour le dossier "
+            f"{dossier.numero_dossier} : {instance.get_resultat_display().lower()} "
+            f"(marge réelle {instance.marge_reelle_pourcentage}%)."
+        )
+    _notifier(destinataires, Notification.Categorie.CONTROLE, message, instance.pk)
+

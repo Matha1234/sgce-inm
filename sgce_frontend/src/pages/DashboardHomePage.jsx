@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { useSelector } from "react-redux";
 
 import { listerCommandes, listerDossiers, listerArticles } from "../api/commandesApi";
+import { recupererTableauBordRentabilite } from "../api/controleApi";
 import { LIBELLES_STATUT_COMMANDE } from "../constants/roles";
 
 function CarteChiffre({ titre, valeur, couleur = "primary.main" }) {
@@ -30,6 +31,7 @@ export default function DashboardHomePage() {
   const [commandes, setCommandes] = useState([]);
   const [dossiers, setDossiers] = useState([]);
   const [articles, setArticles] = useState([]);
+  const [rentabilite, setRentabilite] = useState(null);
 
   useEffect(() => {
     async function charger() {
@@ -45,6 +47,9 @@ export default function DashboardHomePage() {
         }
         if (role === "ADMIN" || role === "MAGASINIER") {
           taches.push(listerArticles().then((d) => setArticles(normaliser(d))));
+        }
+        if (role === "ADMIN") {
+          taches.push(recupererTableauBordRentabilite().then(setRentabilite));
         }
         await Promise.all(taches);
       } catch {
@@ -113,6 +118,24 @@ export default function DashboardHomePage() {
             valeur={articlesEnAlerte.length}
             couleur={articlesEnAlerte.length > 0 ? "error.main" : "success.main"}
           />
+        )}
+        {role === "ADMIN" && rentabilite && (
+          <>
+            <CarteChiffre
+              titre="Dossiers bénéficiaires"
+              valeur={rentabilite.nombre_beneficiaires}
+              couleur="success.main"
+            />
+            <CarteChiffre
+              titre="Dossiers déficitaires"
+              valeur={rentabilite.nombre_deficitaires}
+              couleur="error.main"
+            />
+            <CarteChiffre
+              titre="Marge moyenne"
+              valeur={`${rentabilite.marge_moyenne_pourcentage}%`}
+            />
+          </>
         )}
       </Box>
 

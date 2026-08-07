@@ -9,7 +9,11 @@ import { useSelector } from "react-redux";
 import {
   creerEtape, modifierDossier, modifierEtape, recupererDossier,
 } from "../api/commandesApi";
-import { LIBELLES_STATUT_ETAPE, LIBELLES_STATUT_PRODUCTION } from "../constants/roles";
+import { creerControle, recupererControleParDossier } from "../api/controleApi";
+import {
+  COULEURS_RESULTAT_CONTROLE, LIBELLES_RESULTAT_CONTROLE,
+  LIBELLES_STATUT_ETAPE, LIBELLES_STATUT_PRODUCTION,
+} from "../constants/roles";
 
 const COULEURS_STATUT = {
   CREE: "default", A_FAIRE: "default",
@@ -28,6 +32,13 @@ export default function DossierDetailPage() {
   const [enCours, setEnCours] = useState(false);
   const [nouvelleEtape, setNouvelleEtape] = useState("");
 
+  const [controle, setControle] = useState(null);
+  const [chargementControle, setChargementControle] = useState(false);
+  const [formulaireControle, setFormulaireControle] = useState({
+    cout_matieres_reel: "", cout_temps_machine_reel: "", marge_cible_pourcentage: "20", commentaire: "",
+  });
+  const [erreurControle, setErreurControle] = useState("");
+
   const charger = () => {
     setChargement(true);
     recupererDossier(id)
@@ -36,8 +47,17 @@ export default function DossierDetailPage() {
       .finally(() => setChargement(false));
   };
 
+  const chargerControle = () => {
+    setChargementControle(true);
+    recupererControleParDossier(id)
+      .then(setControle)
+      .catch(() => setControle(null))
+      .finally(() => setChargementControle(false));
+  };
+
   useEffect(() => {
     charger();
+    chargerControle();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -78,6 +98,30 @@ export default function DossierDetailPage() {
       charger();
     } catch {
       setErreur("Impossible de mettre à jour le statut de cette étape.");
+    } finally {
+      setEnCours(false);
+    }
+  };
+
+  const gererSoumissionControle = async (evenement) => {
+    evenement.preventDefault();
+    setEnCours(true);
+    setErreurControle("");
+    try {
+      const donnees = await creerControle({
+        dossier: dossier.id,
+        cout_matieres_reel: formulaireControle.cout_matieres_reel || 0,
+        cout_temps_machine_reel: formulaireControle.cout_temps_machine_reel || 0,
+        marge_cible_pourcentage: formulaireControle.marge_cible_pourcentage || 20,
+        commentaire: formulaireControle.commentaire,
+      });
+      setControle(donnees);
+    } catch (error) {
+      const detail =
+        error?.response?.data?.dossier?.[0] ||
+        error?.response?.data?.non_field_errors?.[0] ||
+        "Impossible d'enregistrer le contrôle du prix de revient.";
+      setErreurControle(detail);
     } finally {
       setEnCours(false);
     }
@@ -204,6 +248,104 @@ export default function DossierDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {dossier.statut_production === "TERMINE" && (
+        <Card sx={{ mt: 3 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Contrôle du prix de revient
+            </Typography>
+
+            {chargementControle && <CircularProgress size={24} />}
+
+            {!chargementControle && controle && (
+              <Box>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                  <Chip
+                    label={LIBELLES_RESULTAT_CONTROLE[controle.resultat] || controle.resultat}
+                    color={COULEURS_RESULTAT_CONTROLE[controle.resultat] || "default"}
+                  />
+                  {controle.ecart_significatif && (
+                    <Chip label="Écart significatif" color="warning" variant="outlined" />
+                  )}
+                </Stack>
+                <Typography variant="body2" color="text.secondary">Prix de revient estimé au devis</Typography>
+                <Typography sx={{ mb: 1 }}>{controle.prix_revient_estime} Ar</Typography>
+                <Typography variant="body2" color="text.secondary">Coût réel constaté (matières + temps machine)</Typography>
+                <Typography sx={{ mb: 1 }}>{controle.cout_reel_total} Ar</Typography>
+                <Typography variant="body2" color="text.secondary">Marge réelle / Marge cible</Typography>
+                <Typography sx={{ mb: 1 }}>
+                  {controle.marge_reelle_pourcentage}% / {controle.marge_cible_pourcentage}%
+                </Typography>
+                {controle.commentaire && (
+                  <>
+                    <Typography variant="body2" color="text.secondary">Commentaire</Typography>
+                    <Typography sx={{ mb: 1 }}>{controle.commentaire}</Typography>
+                  </>
+                )}
+              </Box>
+            )}
+
+            {!chargementControle && !controle && !peutGererProduction && (
+              <Typography color="text.secondary">
+                Le contrôle du prix de revient n'a pas encore été établi pour ce dossier.
+              </Typography>
+            )}
+
+            {!chargementControle && !controle && peutGererProduction && (
+              <Box component="form" onSubmit={gererSoumissionControle}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Saisissez les consommations réelles constatées à la clôture afin de générer
+                  automatiquement la fiche d'analyse de rentabilité (RG23, RG24).
+                </Typography>
+                {erreurControle && <Alert severity="error" sx={{ mb: 2 }}>{erreurControle}</Alert>}
+                <Stack spacing={2} sx={{ maxWidth: 360 }}>
+                  <TextField
+                    label="Coût réel des matières (Ar)"
+                    type="number"
+                    size="small"
+                    value={formulaireControle.cout_matieres_reel}
+                    onChange={(e) =>
+                      setFormulaireControle({ ...formulaireControle, cout_matieres_reel: e.target.value })
+                    }
+                  />
+                  <TextField
+                    label="Coût réel du temps machine (Ar)"
+                    type="number"
+                    size="small"
+                    value={formulaireControle.cout_temps_machine_reel}
+                    onChange={(e) =>
+                      setFormulaireControle({ ...formulaireControle, cout_temps_machine_reel: e.target.value })
+                    }
+                  />
+                  <TextField
+                    label="Marge cible (%)"
+                    type="number"
+                    size="small"
+                    value={formulaireControle.marge_cible_pourcentage}
+                    onChange={(e) =>
+                      setFormulaireControle({ ...formulaireControle, marge_cible_pourcentage: e.target.value })
+                    }
+                  />
+                  <TextField
+                    label="Commentaire (optionnel)"
+                    size="small"
+                    multiline
+                    minRows={2}
+                    value={formulaireControle.commentaire}
+                    onChange={(e) =>
+                      setFormulaireControle({ ...formulaireControle, commentaire: e.target.value })
+                    }
+                  />
+                  <Button type="submit" variant="contained" disabled={enCours}>
+                    Clôturer et calculer le prix de revient
+                  </Button>
+                </Stack>
+              </Box>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </Box>
   );
 }

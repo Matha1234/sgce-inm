@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     'apps.facturation',
     'apps.ia',
     'apps.notifications',
+    'apps.controle',
 ]
 
 MIDDLEWARE = [

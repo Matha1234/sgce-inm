@@ -46,3 +46,15 @@ export const LIBELLES_STATUT_ETAPE = {
   EN_COURS: "En cours",
   TERMINEE: "Terminée",
 };
+
+export const LIBELLES_RESULTAT_CONTROLE = {
+  BENEFICIAIRE: "Bénéficiaire",
+  DEFICITAIRE: "Déficitaire",
+  EQUILIBRE: "À l'équilibre",
+};
+
+export const COULEURS_RESULTAT_CONTROLE = {
+  BENEFICIAIRE: "success",
+  DEFICITAIRE: "error",
+  EQUILIBRE: "default",
+};
