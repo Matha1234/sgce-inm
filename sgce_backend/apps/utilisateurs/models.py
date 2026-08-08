@@ -22,6 +22,10 @@ class Utilisateur(AbstractUser):
         default=Role.AGENT_SDO,
         help_text="Role unique de l'utilisateur (RG14 : un utilisateur = un seul role).",
     )
+    photo = models.ImageField(
+        upload_to="photos_profil/", null=True, blank=True,
+        help_text="Photo de profil de l'utilisateur.",
+    )
 
     class Meta:
         db_table = "utilisateurs"

@@ -6,9 +6,10 @@ from .models import Utilisateur
 
 class UtilisateurSerializer(serializers.ModelSerializer):
     """
-    Serializer en lecture des informations d'un utilisateur.
-    Utilise notamment par /api/auth/me/.
-    Le mot de passe n'est volontairement jamais expose.
+    Serializer utilise par /api/auth/me/, en lecture (GET) et en mise a jour
+    de son propre profil (PATCH : prenom, nom, email, photo uniquement).
+    Le role, le statut actif et l'identifiant ne sont jamais modifiables par
+    l'utilisateur lui-meme (RG14/RG20 : seul l'Administrateur gere les roles).
     """
 
     role_display = serializers.CharField(source="get_role_display", read_only=True)
@@ -25,8 +26,9 @@ class UtilisateurSerializer(serializers.ModelSerializer):
             "role_display",
             "is_active",
             "date_joined",
+            "photo",
         ]
-        read_only_fields = ["id", "date_joined", "role_display"]
+        read_only_fields = ["id", "username", "date_joined", "role_display", "role", "is_active"]
 
 
 class UtilisateurAdminSerializer(serializers.ModelSerializer):
@@ -49,9 +51,9 @@ class UtilisateurAdminSerializer(serializers.ModelSerializer):
         model = Utilisateur
         fields = [
             "id", "username", "email", "first_name", "last_name",
-            "role", "role_display", "is_active", "date_joined", "password",
+            "role", "role_display", "is_active", "date_joined", "password", "photo",
         ]
-        read_only_fields = ["id", "date_joined", "role_display"]
+        read_only_fields = ["id", "date_joined", "role_display", "photo"]
 
     def validate_password(self, value):
         validate_password(value)

@@ -1,3 +1,5 @@
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
@@ -16,3 +18,8 @@ urlpatterns = [
     path('api/', include('apps.utilisateurs.urls')),
     path('api/', include('apps.controle.urls')),
 ]
+
+if settings.DEBUG:
+    # Sert les fichiers uploades (photos de profil) en developpement.
+    # En production, c'est le serveur web (nginx) qui doit s'en charger.
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

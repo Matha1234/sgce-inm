@@ -1,6 +1,7 @@
 from rest_framework import generics
 from rest_framework.exceptions import PermissionDenied
-from rest_framework.generics import RetrieveAPIView
+from rest_framework.generics import RetrieveUpdateAPIView
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 
 from .models import Utilisateur
@@ -8,15 +9,18 @@ from .permissions import IsAdmin
 from .serializers import UtilisateurAdminSerializer, UtilisateurSerializer
 
 
-class MeView(RetrieveAPIView):
+class MeView(RetrieveUpdateAPIView):
     """
-    GET /api/auth/me/
-    Retourne les informations de l'utilisateur actuellement connecte
-    (a partir du token JWT envoye dans l'en-tete Authorization).
+    GET   /api/auth/me/ - informations de l'utilisateur connecte (a partir du
+          token JWT envoye dans l'en-tete Authorization).
+    PATCH /api/auth/me/ - mise a jour de son propre profil : prenom, nom,
+          email et photo uniquement (le role et le statut actif restent
+          reserves a l'Administrateur, cf. UtilisateurSerializer).
     """
 
     serializer_class = UtilisateurSerializer
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_object(self):
         return self.request.user
