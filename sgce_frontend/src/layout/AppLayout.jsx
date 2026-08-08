@@ -13,13 +13,18 @@ import Inventory2Icon from "@mui/icons-material/Inventory2";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import PeopleIcon from "@mui/icons-material/People";
 import AssessmentIcon from "@mui/icons-material/Assessment";
+import PlaylistAddCheckIcon from "@mui/icons-material/PlaylistAddCheck";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
+import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
 import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import CloseIcon from "@mui/icons-material/Close";
 import LogoutIcon from "@mui/icons-material/Logout";
-import PrintIcon from "@mui/icons-material/Print";
+import AlternateEmailIcon from "@mui/icons-material/AlternateEmail";
+import BadgeIcon from "@mui/icons-material/Badge";
+import AccountCircleIcon from "@mui/icons-material/AccountCircle";
+import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 import { useDispatch, useSelector } from "react-redux";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
@@ -33,6 +38,7 @@ import {
   supprimerToutesNotifications as apiSupprimerToutesNotifications,
 } from "../api/utilisateursApi";
 import { COULEURS_ROLES, LIBELLES_ROLES } from "../constants/roles";
+import logoInm from "../assets/logo-inm.png";
 
 const LARGEUR_SIDEBAR_OUVERTE = 260;
 const LARGEUR_SIDEBAR_REDUITE = 76;
@@ -47,6 +53,14 @@ const ELEMENTS_MENU = [
   { label: "Rentabilité", to: "/rentabilite", icon: <AssessmentIcon />, roles: ["ADMIN"] },
   { label: "Utilisateurs", to: "/utilisateurs", icon: <PeopleIcon />, roles: ["ADMIN"] },
 ];
+
+const ICONES_CATEGORIE_NOTIF = {
+  COMMANDE: <AssignmentIcon fontSize="small" />,
+  DOSSIER: <PrecisionManufacturingIcon fontSize="small" />,
+  ETAPE: <PlaylistAddCheckIcon fontSize="small" />,
+  STOCK: <Inventory2Icon fontSize="small" />,
+  CONTROLE: <AssessmentIcon fontSize="small" />,
+};
 
 function initialesUtilisateur(utilisateur) {
   if (!utilisateur) return "?";
@@ -64,6 +78,11 @@ function nomComplet(utilisateur) {
   const nom = utilisateur.last_name || "";
   const complet = `${prenom} ${nom}`.trim();
   return complet || utilisateur.username;
+}
+
+function formaterDate(valeur) {
+  if (!valeur) return "—";
+  return new Date(valeur).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
 }
 
 export default function AppLayout() {
@@ -174,24 +193,45 @@ export default function AppLayout() {
             }),
         }}
       >
-        <Toolbar sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
-          <Stack direction="row" alignItems="center" spacing={1.5}>
+        <Toolbar variant="dense" sx={{ display: "flex", justifyContent: "space-between", gap: 2, position: "relative", minHeight: 48 }}>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <Box
+              component="img"
+              src={logoInm}
+              alt="Logo Imprimerie Nationale de Madagascar"
+              sx={{ height: 28, borderRadius: 1, bgcolor: "#fff", p: 0.3 }}
+            />
             <Tooltip title={sidebarOuverte ? "Réduire le menu" : "Ouvrir le menu"}>
-              <IconButton color="inherit" onClick={basculerSidebar} edge="start">
-                {sidebarOuverte ? <ChevronLeftIcon /> : <MenuIcon />}
+              <IconButton color="inherit" size="small" onClick={basculerSidebar} edge="start">
+                {sidebarOuverte ? <ChevronLeftIcon fontSize="small" /> : <MenuIcon fontSize="small" />}
               </IconButton>
             </Tooltip>
-            <PrintIcon />
-            <Typography variant="h6" noWrap sx={{ display: { xs: "none", sm: "block" } }}>
-              SGCE — Imprimerie Nationale de Madagascar
-            </Typography>
           </Stack>
 
-          <Stack direction="row" alignItems="center" spacing={1}>
+          <Tooltip title="Système de Gestion des Coûts et de l'Exécution des commandes">
+            <Chip
+              label="SGCE"
+              size="small"
+              sx={{
+                position: "absolute",
+                left: "50%",
+                transform: "translateX(-50%)",
+                bgcolor: "rgba(255,255,255,0.14)",
+                color: "#fff",
+                fontWeight: 700,
+                letterSpacing: 1.5,
+                borderRadius: 1,
+                border: "1px solid rgba(255,255,255,0.3)",
+                cursor: "default",
+              }}
+            />
+          </Tooltip>
+
+          <Stack direction="row" alignItems="center" spacing={0.5}>
             <Tooltip title="Notifications">
-              <IconButton color="inherit" onClick={(e) => setAncrageNotifs(e.currentTarget)}>
+              <IconButton color="inherit" size="small" onClick={(e) => setAncrageNotifs(e.currentTarget)}>
                 <Badge badgeContent={nonLues} color="error">
-                  {nonLues > 0 ? <NotificationsIcon /> : <NotificationsNoneIcon />}
+                  {nonLues > 0 ? <NotificationsIcon fontSize="small" /> : <NotificationsNoneIcon fontSize="small" />}
                 </Badge>
               </IconButton>
             </Tooltip>
@@ -199,12 +239,23 @@ export default function AppLayout() {
               anchorEl={ancrageNotifs}
               open={Boolean(ancrageNotifs)}
               onClose={() => setAncrageNotifs(null)}
-              PaperProps={{ sx: { width: 400, maxHeight: 500 } }}
+              PaperProps={{ sx: { width: 340, maxHeight: 400, borderRadius: 2, overflow: "hidden" } }}
             >
-              <Box sx={{ px: 2, py: 1.25, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                  Notifications {nonLues > 0 && `(${nonLues})`}
-                </Typography>
+              <Box
+                sx={{
+                  px: 1.5, py: 1, display: "flex", justifyContent: "space-between", alignItems: "center",
+                  bgcolor: "grey.100",
+                }}
+              >
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <NotificationsIcon fontSize="small" color="action" />
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                    Notifications
+                  </Typography>
+                  {nonLues > 0 && (
+                    <Chip label={`${nonLues} non lue${nonLues > 1 ? "s" : ""}`} size="small" color="error" />
+                  )}
+                </Stack>
                 <Stack direction="row" spacing={0.5}>
                   {nonLues > 0 && (
                     <Tooltip title="Tout marquer comme lu">
@@ -215,7 +266,7 @@ export default function AppLayout() {
                   )}
                   {notifications.length > 0 && (
                     <Tooltip title="Supprimer toutes les notifications">
-                      <IconButton size="small" onClick={gererViderNotifications}>
+                      <IconButton size="small" color="error" onClick={gererViderNotifications}>
                         <DeleteSweepIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
@@ -224,46 +275,87 @@ export default function AppLayout() {
               </Box>
               <Divider />
               {notifications.length === 0 && (
-                <Box sx={{ px: 2, py: 4, textAlign: "center" }}>
-                  <NotificationsNoneIcon sx={{ fontSize: 32, color: "text.disabled", mb: 1 }} />
+                <Box sx={{ px: 2, py: 3, textAlign: "center" }}>
+                  <NotificationsNoneIcon sx={{ fontSize: 36, color: "text.disabled", mb: 1 }} />
                   <Typography variant="body2" color="text.secondary">
                     Aucune notification
                   </Typography>
                 </Box>
               )}
-              {notifications.slice(0, 15).map((notification) => (
-                <MenuItem
-                  key={notification.id}
-                  onClick={() => gererClicNotification(notification)}
-                  sx={{
-                    whiteSpace: "normal",
-                    alignItems: "flex-start",
-                    bgcolor: notification.lue ? "transparent" : "action.hover",
-                    "&:hover .bouton-supprimer-notif": { opacity: 1 },
-                  }}
-                >
-                  <Box sx={{ flexGrow: 1, pr: 1 }}>
-                    <Typography variant="body2">{notification.message}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {notification.categorie_libelle} ·{" "}
-                      {new Date(notification.date_envoi).toLocaleString("fr-FR")}
-                    </Typography>
+              <Box sx={{ maxHeight: 300, overflowY: "auto" }}>
+                {notifications.slice(0, 15).map((notification, index) => (
+                  <Box key={notification.id}>
+                    <MenuItem
+                      onClick={() => gererClicNotification(notification)}
+                      sx={{
+                        whiteSpace: "normal",
+                        alignItems: "flex-start",
+                        gap: 1,
+                        py: 0.9,
+                        px: 1.5,
+                        borderLeft: "3px solid",
+                        borderLeftColor: notification.lue ? "transparent" : "primary.main",
+                        bgcolor: notification.lue ? "transparent" : "primary.50",
+                        "&:hover .bouton-supprimer-notif": { opacity: 1 },
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          mt: 0.4,
+                          color: notification.lue ? "text.disabled" : "primary.main",
+                          display: "flex",
+                        }}
+                      >
+                        {ICONES_CATEGORIE_NOTIF[notification.categorie] || <NotificationsNoneIcon fontSize="small" />}
+                      </Box>
+                      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                        <Stack direction="row" alignItems="center" spacing={0.75}>
+                          {!notification.lue && (
+                            <FiberManualRecordIcon sx={{ fontSize: 8, color: "primary.main" }} />
+                          )}
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: notification.lue ? 400 : 600,
+                              color: notification.lue ? "text.secondary" : "text.primary",
+                              fontSize: 13,
+                            }}
+                          >
+                            {notification.message}
+                          </Typography>
+                        </Stack>
+                        <Stack direction="row" spacing={1} sx={{ mt: 0.4 }}>
+                          <Chip
+                            label={notification.categorie_libelle}
+                            size="small"
+                            variant="outlined"
+                            sx={{ height: 18, fontSize: 10 }}
+                          />
+                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10.5 }}>
+                            {new Date(notification.date_envoi).toLocaleString("fr-FR")}
+                          </Typography>
+                        </Stack>
+                      </Box>
+                      <Tooltip title="Supprimer">
+                        <IconButton
+                          size="small"
+                          className="bouton-supprimer-notif"
+                          onClick={(e) => gererSupprimerNotification(e, notification.id)}
+                          sx={{ opacity: { xs: 1, sm: 0 }, transition: "opacity 0.15s" }}
+                        >
+                          <CloseIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </MenuItem>
+                    {index < notifications.slice(0, 15).length - 1 && <Divider component="li" />}
                   </Box>
-                  <IconButton
-                    size="small"
-                    className="bouton-supprimer-notif"
-                    onClick={(e) => gererSupprimerNotification(e, notification.id)}
-                    sx={{ opacity: { xs: 1, sm: 0 }, transition: "opacity 0.15s", ml: 1 }}
-                  >
-                    <CloseIcon fontSize="small" />
-                  </IconButton>
-                </MenuItem>
-              ))}
+                ))}
+              </Box>
             </Menu>
 
             <Tooltip title="Mon profil">
-              <IconButton onClick={(e) => setAncrageProfil(e.currentTarget)} sx={{ ml: 0.5 }}>
-                <Avatar sx={{ width: 36, height: 36, bgcolor: couleurAvatar, fontSize: 15 }}>
+              <IconButton size="small" onClick={(e) => setAncrageProfil(e.currentTarget)} sx={{ ml: 0.5 }}>
+                <Avatar sx={{ width: 30, height: 30, bgcolor: couleurAvatar, fontSize: 13 }}>
                   {initialesUtilisateur(utilisateur)}
                 </Avatar>
               </IconButton>
@@ -272,33 +364,72 @@ export default function AppLayout() {
               anchorEl={ancrageProfil}
               open={Boolean(ancrageProfil)}
               onClose={() => setAncrageProfil(null)}
-              PaperProps={{ sx: { width: 280 } }}
+              PaperProps={{ sx: { width: 300, borderRadius: 2, overflow: "hidden" } }}
             >
-              <Box sx={{ px: 2.5, py: 2, display: "flex", alignItems: "center", gap: 1.5 }}>
-                <Avatar sx={{ width: 48, height: 48, bgcolor: couleurAvatar, fontSize: 18 }}>
+              <Box
+                sx={{
+                  px: 2.5, py: 2.5, display: "flex", flexDirection: "column", alignItems: "center",
+                  textAlign: "center", bgcolor: "grey.100",
+                }}
+              >
+                <Avatar sx={{ width: 60, height: 60, bgcolor: couleurAvatar, fontSize: 22, mb: 1 }}>
                   {initialesUtilisateur(utilisateur)}
                 </Avatar>
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography variant="subtitle2" noWrap>
-                    {nomComplet(utilisateur)}
-                  </Typography>
-                  {utilisateur?.email && (
-                    <Typography variant="caption" color="text.secondary" noWrap sx={{ display: "block" }}>
-                      {utilisateur.email}
-                    </Typography>
-                  )}
-                </Box>
-              </Box>
-              <Box sx={{ px: 2.5, pb: 1.5 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }} noWrap>
+                  {nomComplet(utilisateur)}
+                </Typography>
                 <Chip
                   label={LIBELLES_ROLES[utilisateur?.role] || utilisateur?.role}
                   size="small"
-                  sx={{ bgcolor: couleurAvatar, color: "#fff", fontWeight: 500 }}
+                  sx={{ bgcolor: couleurAvatar, color: "#fff", fontWeight: 500, mt: 0.75 }}
                 />
               </Box>
               <Divider />
-              <MenuItem onClick={gererDeconnexion} sx={{ py: 1.25 }}>
-                <ListItemIcon>
+              <Box sx={{ px: 2.5, py: 1.5 }}>
+                <Stack spacing={1.1}>
+                  <Stack direction="row" spacing={1.25} alignItems="center">
+                    <AccountCircleIcon fontSize="small" color="action" />
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.2 }}>
+                        Identifiant
+                      </Typography>
+                      <Typography variant="body2" noWrap>{utilisateur?.username || "—"}</Typography>
+                    </Box>
+                  </Stack>
+                  <Stack direction="row" spacing={1.25} alignItems="center">
+                    <AlternateEmailIcon fontSize="small" color="action" />
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.2 }}>
+                        Email
+                      </Typography>
+                      <Typography variant="body2" noWrap>{utilisateur?.email || "—"}</Typography>
+                    </Box>
+                  </Stack>
+                  <Stack direction="row" spacing={1.25} alignItems="center">
+                    <BadgeIcon fontSize="small" color="action" />
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.2 }}>
+                        Rôle
+                      </Typography>
+                      <Typography variant="body2" noWrap>
+                        {LIBELLES_ROLES[utilisateur?.role] || utilisateur?.role || "—"}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                  <Stack direction="row" spacing={1.25} alignItems="center">
+                    <EventAvailableIcon fontSize="small" color="action" />
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.2 }}>
+                        Membre depuis
+                      </Typography>
+                      <Typography variant="body2" noWrap>{formaterDate(utilisateur?.date_joined)}</Typography>
+                    </Box>
+                  </Stack>
+                </Stack>
+              </Box>
+              <Divider />
+              <MenuItem onClick={gererDeconnexion} sx={{ py: 1.25, color: "error.main" }}>
+                <ListItemIcon sx={{ color: "error.main" }}>
                   <LogoutIcon fontSize="small" />
                 </ListItemIcon>
                 Déconnexion
@@ -326,7 +457,7 @@ export default function AppLayout() {
           },
         }}
       >
-        <Toolbar />
+        <Toolbar variant="dense" sx={{ minHeight: 48 }} />
         <List sx={{ mt: 1 }}>
           {menuVisible.map((item) => {
             const bouton = (
@@ -367,7 +498,7 @@ export default function AppLayout() {
       </Drawer>
 
       <Box component="main" sx={{ flexGrow: 1, p: 3, minWidth: 0 }}>
-        <Toolbar />
+        <Toolbar variant="dense" sx={{ minHeight: 48 }} />
         <Outlet />
       </Box>
     </Box>

@@ -49,3 +49,23 @@ class NotificationMarquerToutesLuesView(APIView):
     def post(self, request):
         nb_maj = Notification.objects.filter(destinataire=request.user, lue=False).update(lue=True)
         return Response({"notifications_marquees_lues": nb_maj}, status=status.HTTP_200_OK)
+
+
+class NotificationDeleteView(generics.DestroyAPIView):
+    """Supprime une notification appartenant a l'utilisateur connecte."""
+
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(destinataire=self.request.user)
+
+
+class NotificationSupprimerToutesView(APIView):
+    """Supprime toutes les notifications de l'utilisateur connecte (boîte de notification)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request):
+        nb_suppr, _ = Notification.objects.filter(destinataire=request.user).delete()
+        return Response({"notifications_supprimees": nb_suppr}, status=status.HTTP_200_OK)
