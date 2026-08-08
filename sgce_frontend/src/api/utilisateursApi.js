@@ -9,6 +9,10 @@ export const marquerNotificationLue = (id) =>
   axiosClient.patch(`/notifications/${id}/lue/`, {}).then((r) => r.data);
 export const marquerToutesNotificationsLues = () =>
   axiosClient.post("/notifications/tout-marquer-lu/").then((r) => r.data);
+export const supprimerNotification = (id) =>
+  axiosClient.delete(`/notifications/${id}/`).then((r) => r.data);
+export const supprimerToutesNotifications = () =>
+  axiosClient.delete("/notifications/tout-supprimer/").then((r) => r.data);
 
 // --- Utilisateurs (Administrateur) ---
 export const listerUtilisateurs = () => axiosClient.get("/utilisateurs/").then((r) => r.data);

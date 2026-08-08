@@ -12,6 +12,13 @@ export const LIBELLES_ROLES = {
   MAGASINIER: "Magasinier",
 };
 
+export const COULEURS_ROLES = {
+  ADMIN: "#6A1B9A",
+  AGENT_SDO: "#1565C0",
+  CHEF_ATELIER: "#EF6C00",
+  MAGASINIER: "#2E7D32",
+};
+
 export const LIBELLES_STATUT_COMMANDE = {
   EN_ATTENTE: "En attente",
   DEVIS: "Devis en cours",
