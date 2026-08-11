@@ -19,3 +19,19 @@ export const listerUtilisateurs = () => axiosClient.get("/utilisateurs/").then((
 export const creerUtilisateur = (donnees) => axiosClient.post("/utilisateurs/", donnees).then((r) => r.data);
 export const modifierUtilisateur = (id, donnees) =>
   axiosClient.patch(`/utilisateurs/${id}/`, donnees).then((r) => r.data);
+
+// --- Annuaire interne (tous les utilisateurs authentifiés) ---
+export const listerAnnuaire = () => axiosClient.get("/utilisateurs/annuaire/").then((r) => r.data);
+
+// --- Profil personnel ---
+export const mettreAJourProfil = (donnees) =>
+  axiosClient.patch("/auth/me/", donnees).then((r) => r.data);
+export const mettreAJourPhotoProfil = (fichier) => {
+  const formData = new FormData();
+  formData.append("photo", fichier);
+  return axiosClient
+    .patch("/auth/me/", formData, { headers: { "Content-Type": "multipart/form-data" } })
+    .then((r) => r.data);
+};
+export const changerMotDePasse = (donnees) =>
+  axiosClient.post("/auth/changer-mot-de-passe/", donnees).then((r) => r.data);

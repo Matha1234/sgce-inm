@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert, Box, Button, Divider, IconButton, InputAdornment, Paper,
-  TextField, Typography,
+  Snackbar, TextField, Typography,
 } from "@mui/material";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutlined";
@@ -14,6 +14,8 @@ import { seConnecter, recupererProfil } from "../api/authApi";
 import { setTokens, setUtilisateur } from "../store/authSlice";
 import logoInm from "../assets/logo-inm.png";
 
+const CLE_EVENEMENT_AUTH = "sgce_evenement_auth";
+
 export default function LoginPage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -25,6 +27,22 @@ export default function LoginPage() {
   const [motDePasseVisible, setMotDePasseVisible] = useState(false);
   const [erreur, setErreur] = useState("");
   const [enCours, setEnCours] = useState(false);
+  const [messageDeconnexion, setMessageDeconnexion] = useState(false);
+
+  useEffect(() => {
+    const brut = sessionStorage.getItem(CLE_EVENEMENT_AUTH);
+    if (brut) {
+      try {
+        const evenement = JSON.parse(brut);
+        if (evenement?.type === "deconnexion") {
+          setMessageDeconnexion(true);
+          sessionStorage.removeItem(CLE_EVENEMENT_AUTH);
+        }
+      } catch {
+        sessionStorage.removeItem(CLE_EVENEMENT_AUTH);
+      }
+    }
+  }, []);
 
   if (estAuthentifie) {
     const destination = location.state?.from?.pathname || "/";
@@ -40,6 +58,10 @@ export default function LoginPage() {
       dispatch(setTokens({ access, refresh }));
       const profil = await recupererProfil();
       dispatch(setUtilisateur(profil));
+      sessionStorage.setItem(
+        CLE_EVENEMENT_AUTH,
+        JSON.stringify({ type: "connexion", nom: profil?.first_name || profil?.username || "" })
+      );
       navigate("/", { replace: true });
     } catch (err) {
       if (err.response && err.response.status === 401) {
@@ -230,6 +252,17 @@ export default function LoginPage() {
           </Typography>
         </Paper>
       </Box>
+
+      <Snackbar
+        open={messageDeconnexion}
+        autoHideDuration={4000}
+        onClose={() => setMessageDeconnexion(false)}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+      >
+        <Alert severity="success" variant="filled" onClose={() => setMessageDeconnexion(false)}>
+          Vous avez été déconnecté avec succès.
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

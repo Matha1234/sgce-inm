@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'apps.ia',
     'apps.notifications',
     'apps.controle',
+    'apps.messagerie',
 ]
 
 MIDDLEWARE = [

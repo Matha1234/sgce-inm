@@ -15,6 +15,8 @@ import StockPage from "./pages/StockPage";
 import UtilisateursPage from "./pages/UtilisateursPage";
 import FacturesListPage from "./pages/FacturesListPage";
 import ControlesListPage from "./pages/ControlesListPage";
+import MessageriePage from "./pages/MessageriePage";
+import ParametresPage from "./pages/ParametresPage";
 
 export default function App() {
   return (
@@ -25,6 +27,8 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/" element={<DashboardHomePage />} />
+          <Route path="/messagerie" element={<MessageriePage />} />
+          <Route path="/parametres" element={<ParametresPage />} />
 
           <Route element={<ProtectedRoute rolesAutorises={["AGENT_SDO"]} />}>
             <Route path="/commandes" element={<CommandesListPage />} />

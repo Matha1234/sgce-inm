@@ -31,6 +31,26 @@ class UtilisateurSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "username", "date_joined", "role_display", "role", "is_active"]
 
 
+class UtilisateurAnnuaireSerializer(serializers.ModelSerializer):
+    """
+    Serializer minimal expose a tous les utilisateurs authentifies (annuaire
+    interne), utilise pour choisir un destinataire lors de l'envoi d'un
+    message. Ne renvoie aucune information sensible (pas d'email, pas de
+    statut de compte).
+    """
+
+    nom_complet = serializers.SerializerMethodField()
+    role_display = serializers.CharField(source="get_role_display", read_only=True)
+
+    class Meta:
+        model = Utilisateur
+        fields = ["id", "nom_complet", "role", "role_display"]
+
+    def get_nom_complet(self, obj):
+        complet = f"{obj.first_name} {obj.last_name}".strip()
+        return complet or obj.username
+
+
 class UtilisateurAdminSerializer(serializers.ModelSerializer):
     """
     Serializer de gestion des comptes utilisateurs, reserve a

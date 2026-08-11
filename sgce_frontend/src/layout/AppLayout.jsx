@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  AppBar, Avatar, Badge, Box, Chip, Divider, Drawer, IconButton, List,
-  ListItemButton, ListItemIcon, ListItemText, Menu, MenuItem, Stack, Toolbar,
-  Tooltip, Typography,
+  AppBar, Avatar, Badge, Box, Button, Chip, CircularProgress, Dialog, DialogActions,
+  DialogContent, Divider, Drawer, IconButton, List, ListItemButton, ListItemIcon,
+  ListItemText, Menu, MenuItem, Stack, Toolbar, Tooltip, Typography,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
@@ -13,9 +13,11 @@ import Inventory2Icon from "@mui/icons-material/Inventory2";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import PeopleIcon from "@mui/icons-material/People";
 import AssessmentIcon from "@mui/icons-material/Assessment";
+import SettingsIcon from "@mui/icons-material/Settings";
 import PlaylistAddCheckIcon from "@mui/icons-material/PlaylistAddCheck";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
+import MailOutlineIcon from "@mui/icons-material/MailOutlined";
 import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
 import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
@@ -25,24 +27,30 @@ import AlternateEmailIcon from "@mui/icons-material/AlternateEmail";
 import BadgeIcon from "@mui/icons-material/Badge";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
+import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import WavingHandIcon from "@mui/icons-material/WavingHand";
 import { useDispatch, useSelector } from "react-redux";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
-import { logout } from "../store/authSlice";
+import { logout, setUtilisateur } from "../store/authSlice";
 import {
   marquerLue, marquerToutesLues, setNotifications, supprimerNotification, viderNotifications,
 } from "../store/notificationsSlice";
 import {
   listerNotifications, marquerNotificationLue, marquerToutesNotificationsLues,
+  mettreAJourPhotoProfil,
   supprimerNotification as apiSupprimerNotification,
   supprimerToutesNotifications as apiSupprimerToutesNotifications,
 } from "../api/utilisateursApi";
+import { listerMessagesRecus } from "../api/messagerieApi";
 import { COULEURS_ROLES, LIBELLES_ROLES } from "../constants/roles";
 import logoInm from "../assets/logo-inm.png";
 
-const LARGEUR_SIDEBAR_OUVERTE = 260;
-const LARGEUR_SIDEBAR_REDUITE = 76;
+const LARGEUR_SIDEBAR_OUVERTE = 216;
+const LARGEUR_SIDEBAR_REDUITE = 64;
 const CLE_SIDEBAR = "sgce_sidebar_ouverte";
+const CLE_EVENEMENT_AUTH = "sgce_evenement_auth";
 
 const ELEMENTS_MENU = [
   { label: "Tableau de bord", to: "/", icon: <DashboardIcon />, roles: null },
@@ -52,6 +60,7 @@ const ELEMENTS_MENU = [
   { label: "Facturation", to: "/factures", icon: <ReceiptLongIcon />, roles: ["ADMIN", "AGENT_SDO"] },
   { label: "Rentabilité", to: "/rentabilite", icon: <AssessmentIcon />, roles: ["ADMIN"] },
   { label: "Utilisateurs", to: "/utilisateurs", icon: <PeopleIcon />, roles: ["ADMIN"] },
+  { label: "Paramètres", to: "/parametres", icon: <SettingsIcon />, roles: null },
 ];
 
 const ICONES_CATEGORIE_NOTIF = {
@@ -97,6 +106,10 @@ export default function AppLayout() {
   });
   const [ancrageNotifs, setAncrageNotifs] = useState(null);
   const [ancrageProfil, setAncrageProfil] = useState(null);
+  const [televersementPhoto, setTeleversementPhoto] = useState(false);
+  const [messagesNonLus, setMessagesNonLus] = useState(0);
+  const [evenementAuth, setEvenementAuth] = useState(null);
+  const inputPhotoRef = useRef(null);
 
   const largeurSidebar = sidebarOuverte ? LARGEUR_SIDEBAR_OUVERTE : LARGEUR_SIDEBAR_REDUITE;
 
@@ -116,11 +129,37 @@ export default function AppLayout() {
     }
   };
 
+  const chargerMessagesNonLus = async () => {
+    try {
+      const data = await listerMessagesRecus();
+      const liste = Array.isArray(data) ? data : data.results || [];
+      setMessagesNonLus(liste.filter((m) => !m.lu).length);
+    } catch {
+      // silencieux
+    }
+  };
+
   useEffect(() => {
     chargerNotifications();
-    const intervalle = setInterval(chargerNotifications, 30000);
+    chargerMessagesNonLus();
+    const intervalle = setInterval(() => {
+      chargerNotifications();
+      chargerMessagesNonLus();
+    }, 30000);
     return () => clearInterval(intervalle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const brut = sessionStorage.getItem(CLE_EVENEMENT_AUTH);
+    if (brut) {
+      try {
+        setEvenementAuth(JSON.parse(brut));
+      } catch {
+        setEvenementAuth(null);
+      }
+      sessionStorage.removeItem(CLE_EVENEMENT_AUTH);
+    }
   }, []);
 
   const gererClicNotification = async (notification) => {
@@ -164,8 +203,28 @@ export default function AppLayout() {
   };
 
   const gererDeconnexion = () => {
+    sessionStorage.setItem(CLE_EVENEMENT_AUTH, JSON.stringify({ type: "deconnexion" }));
     dispatch(logout());
     navigate("/login", { replace: true });
+  };
+
+  const gererChoixPhoto = () => {
+    inputPhotoRef.current?.click();
+  };
+
+  const gererChangementPhoto = async (evenement) => {
+    const fichier = evenement.target.files?.[0];
+    evenement.target.value = "";
+    if (!fichier) return;
+    setTeleversementPhoto(true);
+    try {
+      const utilisateurMisAJour = await mettreAJourPhotoProfil(fichier);
+      dispatch(setUtilisateur(utilisateurMisAJour));
+    } catch {
+      // pas bloquant : la photo precedente (ou les initiales) reste affichee
+    } finally {
+      setTeleversementPhoto(false);
+    }
   };
 
   const menuVisible = useMemo(
@@ -201,30 +260,24 @@ export default function AppLayout() {
               alt="Logo Imprimerie Nationale de Madagascar"
               sx={{ height: 28, borderRadius: 1, bgcolor: "#fff", p: 0.3 }}
             />
-            <Tooltip title={sidebarOuverte ? "Réduire le menu" : "Ouvrir le menu"}>
-              <IconButton color="inherit" size="small" onClick={basculerSidebar} edge="start">
-                {sidebarOuverte ? <ChevronLeftIcon fontSize="small" /> : <MenuIcon fontSize="small" />}
-              </IconButton>
-            </Tooltip>
           </Stack>
 
-          <Tooltip title="Système de Gestion des Coûts et de l'Exécution des commandes">
-            <Chip
-              label="SGCE"
-              size="small"
+          <Tooltip title="Conception et réalisation d'un système de gestion des coûts, de la fabrication et du contrôle du prix de revient">
+            <Typography
               sx={{
                 position: "absolute",
                 left: "50%",
                 transform: "translateX(-50%)",
-                bgcolor: "rgba(255,255,255,0.14)",
+                fontWeight: 800,
+                letterSpacing: 3,
+                fontSize: 15,
                 color: "#fff",
-                fontWeight: 700,
-                letterSpacing: 1.5,
-                borderRadius: 1,
-                border: "1px solid rgba(255,255,255,0.3)",
                 cursor: "default",
+                userSelect: "none",
               }}
-            />
+            >
+              SGCE
+            </Typography>
           </Tooltip>
 
           <Stack direction="row" alignItems="center" spacing={0.5}>
@@ -239,7 +292,7 @@ export default function AppLayout() {
               anchorEl={ancrageNotifs}
               open={Boolean(ancrageNotifs)}
               onClose={() => setAncrageNotifs(null)}
-              PaperProps={{ sx: { width: 340, maxHeight: 400, borderRadius: 2, overflow: "hidden" } }}
+              PaperProps={{ sx: { width: 300, maxHeight: 400, borderRadius: 2, overflow: "hidden" } }}
             >
               <Box
                 sx={{
@@ -353,9 +406,20 @@ export default function AppLayout() {
               </Box>
             </Menu>
 
+            <Tooltip title="Messagerie">
+              <IconButton color="inherit" size="small" onClick={() => navigate("/messagerie")}>
+                <Badge badgeContent={messagesNonLus} color="error">
+                  <MailOutlineIcon fontSize="small" />
+                </Badge>
+              </IconButton>
+            </Tooltip>
+
             <Tooltip title="Mon profil">
               <IconButton size="small" onClick={(e) => setAncrageProfil(e.currentTarget)} sx={{ ml: 0.5 }}>
-                <Avatar sx={{ width: 30, height: 30, bgcolor: couleurAvatar, fontSize: 13 }}>
+                <Avatar
+                  src={utilisateur?.photo || undefined}
+                  sx={{ width: 30, height: 30, bgcolor: couleurAvatar, fontSize: 13 }}
+                >
                   {initialesUtilisateur(utilisateur)}
                 </Avatar>
               </IconButton>
@@ -372,9 +436,39 @@ export default function AppLayout() {
                   textAlign: "center", bgcolor: "grey.100",
                 }}
               >
-                <Avatar sx={{ width: 60, height: 60, bgcolor: couleurAvatar, fontSize: 22, mb: 1 }}>
-                  {initialesUtilisateur(utilisateur)}
-                </Avatar>
+                <Box sx={{ position: "relative", mb: 1 }}>
+                  <Avatar
+                    src={utilisateur?.photo || undefined}
+                    sx={{ width: 60, height: 60, bgcolor: couleurAvatar, fontSize: 22 }}
+                  >
+                    {initialesUtilisateur(utilisateur)}
+                  </Avatar>
+                  <Tooltip title="Changer la photo de profil">
+                    <IconButton
+                      size="small"
+                      onClick={gererChoixPhoto}
+                      disabled={televersementPhoto}
+                      sx={{
+                        position: "absolute", bottom: -2, right: -2, width: 24, height: 24,
+                        bgcolor: "primary.main", color: "#fff",
+                        "&:hover": { bgcolor: "primary.dark" },
+                      }}
+                    >
+                      {televersementPhoto ? (
+                        <CircularProgress size={13} sx={{ color: "#fff" }} />
+                      ) : (
+                        <PhotoCameraIcon sx={{ fontSize: 13 }} />
+                      )}
+                    </IconButton>
+                  </Tooltip>
+                  <input
+                    ref={inputPhotoRef}
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={gererChangementPhoto}
+                  />
+                </Box>
                 <Typography variant="subtitle1" sx={{ fontWeight: 700 }} noWrap>
                   {nomComplet(utilisateur)}
                 </Typography>
@@ -451,13 +545,37 @@ export default function AppLayout() {
             overflowX: "hidden",
             transition: (theme) =>
               theme.transitions.create("width", {
-                easing: theme.transitions.easing.sharp,
-                duration: theme.transitions.duration.enteringScreen,
+                easing: theme.transitions.easing.easeInOut,
+                duration: 220,
               }),
           },
         }}
       >
         <Toolbar variant="dense" sx={{ minHeight: 48 }} />
+
+        <Tooltip title={sidebarOuverte ? "Réduire le menu" : "Ouvrir le menu"} placement="right">
+          <Box
+            onClick={basculerSidebar}
+            sx={{
+              width: "100%",
+              height: 40,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: sidebarOuverte ? "flex-end" : "center",
+              px: sidebarOuverte ? 1.5 : 0,
+              cursor: "pointer",
+              color: "text.secondary",
+              borderBottom: "1px solid",
+              borderColor: "divider",
+              transition: "background-color 0.15s",
+              "&:hover": { bgcolor: "action.hover" },
+              "&:active": { bgcolor: "action.selected" },
+            }}
+          >
+            {sidebarOuverte ? <ChevronLeftIcon fontSize="small" /> : <MenuIcon fontSize="small" />}
+          </Box>
+        </Tooltip>
+
         <List sx={{ mt: 1 }}>
           {menuVisible.map((item) => {
             const bouton = (
@@ -467,16 +585,20 @@ export default function AppLayout() {
                 to={item.to}
                 end={item.to === "/"}
                 sx={{
-                  minHeight: 46,
+                  minHeight: 44,
                   mx: 1,
                   mb: 0.5,
                   borderRadius: 1.5,
                   justifyContent: sidebarOuverte ? "flex-start" : "center",
                   px: sidebarOuverte ? 2 : 1.5,
+                  transition: "background-color 0.15s, transform 0.1s",
+                  "&:hover": { bgcolor: "action.hover" },
+                  "&:active": { transform: "scale(0.97)" },
                   "&.active": {
                     bgcolor: "primary.main",
                     color: "primary.contrastText",
                     "& .MuiListItemIcon-root": { color: "primary.contrastText" },
+                    "&:hover": { bgcolor: "primary.main" },
                   },
                 }}
               >
@@ -497,10 +619,53 @@ export default function AppLayout() {
         </List>
       </Drawer>
 
-      <Box component="main" sx={{ flexGrow: 1, p: 3, minWidth: 0 }}>
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          p: 3,
+          minWidth: 0,
+          transition: (theme) =>
+            theme.transitions.create("margin", {
+              easing: theme.transitions.easing.easeInOut,
+              duration: 220,
+            }),
+        }}
+      >
         <Toolbar variant="dense" sx={{ minHeight: 48 }} />
         <Outlet />
       </Box>
+
+      <Dialog open={Boolean(evenementAuth)} onClose={() => setEvenementAuth(null)} maxWidth="xs" fullWidth>
+        <DialogContent sx={{ textAlign: "center", py: 4 }}>
+          {evenementAuth?.type === "connexion" ? (
+            <>
+              <WavingHandIcon sx={{ fontSize: 48, color: "primary.main", mb: 1 }} />
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                Bienvenue{evenementAuth?.nom ? `, ${evenementAuth.nom}` : ""} !
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                Vous êtes connecté avec succès au SGCE-INM.
+              </Typography>
+            </>
+          ) : (
+            <>
+              <CheckCircleIcon sx={{ fontSize: 48, color: "success.main", mb: 1 }} />
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                Déconnexion réussie
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                À bientôt sur le SGCE-INM.
+              </Typography>
+            </>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: "center", pb: 3 }}>
+          <Button variant="contained" onClick={() => setEvenementAuth(null)}>
+            OK
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
