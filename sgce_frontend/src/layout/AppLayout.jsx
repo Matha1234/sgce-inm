@@ -105,10 +105,13 @@ export default function AppLayout() {
     return enregistre === null ? true : enregistre === "true";
   });
   const [ancrageNotifs, setAncrageNotifs] = useState(null);
+  const [ancrageMessages, setAncrageMessages] = useState(null);
   const [ancrageProfil, setAncrageProfil] = useState(null);
   const [televersementPhoto, setTeleversementPhoto] = useState(false);
+  const [messages, setMessages] = useState([]);
   const [messagesNonLus, setMessagesNonLus] = useState(0);
   const [evenementAuth, setEvenementAuth] = useState(null);
+  const [dialogueDeconnexionOuvert, setDialogueDeconnexionOuvert] = useState(false);
   const inputPhotoRef = useRef(null);
 
   const largeurSidebar = sidebarOuverte ? LARGEUR_SIDEBAR_OUVERTE : LARGEUR_SIDEBAR_REDUITE;
@@ -129,10 +132,11 @@ export default function AppLayout() {
     }
   };
 
-  const chargerMessagesNonLus = async () => {
+  const chargerMessages = async () => {
     try {
       const data = await listerMessagesRecus();
       const liste = Array.isArray(data) ? data : data.results || [];
+      setMessages(liste);
       setMessagesNonLus(liste.filter((m) => !m.lu).length);
     } catch {
       // silencieux
@@ -141,10 +145,10 @@ export default function AppLayout() {
 
   useEffect(() => {
     chargerNotifications();
-    chargerMessagesNonLus();
+    chargerMessages();
     const intervalle = setInterval(() => {
       chargerNotifications();
-      chargerMessagesNonLus();
+      chargerMessages();
     }, 30000);
     return () => clearInterval(intervalle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -202,8 +206,17 @@ export default function AppLayout() {
     }
   };
 
-  const gererDeconnexion = () => {
-    sessionStorage.setItem(CLE_EVENEMENT_AUTH, JSON.stringify({ type: "deconnexion" }));
+  const demanderDeconnexion = () => {
+    setAncrageProfil(null);
+    setDialogueDeconnexionOuvert(true);
+  };
+
+  const annulerDeconnexion = () => {
+    setDialogueDeconnexionOuvert(false);
+  };
+
+  const confirmerDeconnexion = () => {
+    setDialogueDeconnexionOuvert(false);
     dispatch(logout());
     navigate("/login", { replace: true });
   };
@@ -262,7 +275,7 @@ export default function AppLayout() {
             />
           </Stack>
 
-          <Tooltip title="Conception et réalisation d'un système de gestion des coûts, de la fabrication et du contrôle du prix de revient">
+          <Tooltip title="Système de gestion des coûts, de la fabrication et du contrôle du prix de revient">
             <Typography
               sx={{
                 position: "absolute",
@@ -276,7 +289,7 @@ export default function AppLayout() {
                 userSelect: "none",
               }}
             >
-              SGCE
+              SGCFP
             </Typography>
           </Tooltip>
 
@@ -407,12 +420,100 @@ export default function AppLayout() {
             </Menu>
 
             <Tooltip title="Messagerie">
-              <IconButton color="inherit" size="small" onClick={() => navigate("/messagerie")}>
+              <IconButton color="inherit" size="small" onClick={(e) => setAncrageMessages(e.currentTarget)}>
                 <Badge badgeContent={messagesNonLus} color="error">
                   <MailOutlineIcon fontSize="small" />
                 </Badge>
               </IconButton>
             </Tooltip>
+            <Menu
+              anchorEl={ancrageMessages}
+              open={Boolean(ancrageMessages)}
+              onClose={() => setAncrageMessages(null)}
+              PaperProps={{ sx: { width: 320, maxHeight: 420, borderRadius: 2, overflow: "hidden" } }}
+            >
+              <Box
+                sx={{
+                  px: 1.5, py: 1, display: "flex", justifyContent: "space-between", alignItems: "center",
+                  bgcolor: "grey.100",
+                }}
+              >
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <MailOutlineIcon fontSize="small" color="action" />
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                    Messagerie
+                  </Typography>
+                  {messagesNonLus > 0 && (
+                    <Chip label={`${messagesNonLus} non lu${messagesNonLus > 1 ? "s" : ""}`} size="small" color="error" />
+                  )}
+                </Stack>
+              </Box>
+              <Divider />
+              {messages.length === 0 && (
+                <Box sx={{ px: 2, py: 3, textAlign: "center" }}>
+                  <MailOutlineIcon sx={{ fontSize: 36, color: "text.disabled", mb: 1 }} />
+                  <Typography variant="body2" color="text.secondary">
+                    Aucun message
+                  </Typography>
+                </Box>
+              )}
+              <Box sx={{ maxHeight: 300, overflowY: "auto" }}>
+                {messages.slice(0, 15).map((message, index) => (
+                  <Box key={message.id}>
+                    <MenuItem
+                      onClick={() => setAncrageMessages(null)}
+                      sx={{
+                        whiteSpace: "normal",
+                        alignItems: "flex-start",
+                        gap: 1,
+                        py: 0.9,
+                        px: 1.5,
+                        borderLeft: "3px solid",
+                        borderLeftColor: message.lu ? "transparent" : "primary.main",
+                        bgcolor: message.lu ? "transparent" : "primary.50",
+                      }}
+                    >
+                      <Box sx={{ mt: 0.4, color: message.lu ? "text.disabled" : "primary.main", display: "flex" }}>
+                        <MailOutlineIcon fontSize="small" />
+                      </Box>
+                      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                        <Stack direction="row" alignItems="center" spacing={0.75}>
+                          {!message.lu && <FiberManualRecordIcon sx={{ fontSize: 8, color: "primary.main" }} />}
+                          <Typography
+                            variant="body2"
+                            noWrap
+                            sx={{
+                              fontWeight: message.lu ? 400 : 600,
+                              color: message.lu ? "text.secondary" : "text.primary",
+                              fontSize: 13,
+                            }}
+                          >
+                            {message.expediteur_nom || message.expediteur || "Expéditeur inconnu"}
+                          </Typography>
+                        </Stack>
+                        <Typography variant="body2" noWrap sx={{ fontSize: 12.5, color: "text.secondary" }}>
+                          {message.sujet || message.titre || "(Sans objet)"}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10.5 }}>
+                          {message.date_envoi ? new Date(message.date_envoi).toLocaleString("fr-FR") : ""}
+                        </Typography>
+                      </Box>
+                    </MenuItem>
+                    {index < messages.slice(0, 15).length - 1 && <Divider component="li" />}
+                  </Box>
+                ))}
+              </Box>
+              <Divider />
+              <MenuItem
+                onClick={() => {
+                  setAncrageMessages(null);
+                  navigate("/messagerie");
+                }}
+                sx={{ justifyContent: "center", py: 1, color: "primary.main", fontWeight: 600, fontSize: 13 }}
+              >
+                Voir tous les messages
+              </MenuItem>
+            </Menu>
 
             <Tooltip title="Mon profil">
               <IconButton size="small" onClick={(e) => setAncrageProfil(e.currentTarget)} sx={{ ml: 0.5 }}>
@@ -522,7 +623,7 @@ export default function AppLayout() {
                 </Stack>
               </Box>
               <Divider />
-              <MenuItem onClick={gererDeconnexion} sx={{ py: 1.25, color: "error.main" }}>
+              <MenuItem onClick={demanderDeconnexion} sx={{ py: 1.25, color: "error.main" }}>
                 <ListItemIcon sx={{ color: "error.main" }}>
                   <LogoutIcon fontSize="small" />
                 </ListItemIcon>
@@ -663,6 +764,28 @@ export default function AppLayout() {
         <DialogActions sx={{ justifyContent: "center", pb: 3 }}>
           <Button variant="contained" onClick={() => setEvenementAuth(null)}>
             OK
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={dialogueDeconnexionOuvert}
+        onClose={annulerDeconnexion}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogContent sx={{ textAlign: "center", py: 4 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+            Confirmer la déconnexion
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Voulez-vous vraiment vous déconnecter de votre session, {nomComplet(utilisateur)} ?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: "center", pb: 3, gap: 1 }}>
+          <Button onClick={annulerDeconnexion}>Annuler</Button>
+          <Button onClick={confirmerDeconnexion} variant="contained" color="error" startIcon={<LogoutIcon />}>
+            Confirmer
           </Button>
         </DialogActions>
       </Dialog>

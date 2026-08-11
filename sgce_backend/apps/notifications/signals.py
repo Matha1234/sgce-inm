@@ -8,10 +8,11 @@ l'instance (attribut prive `_statut_avant`), et le signal post_save
 compare avec le nouveau statut pour decider s'il faut notifier.
 """
 
+from django.db import transaction
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
-from apps.commandes.models import Commande, DossierFabrication, EtapeProduction
+from apps.commandes.models import Article, Commande, DossierFabrication, EtapeProduction, MouvementStock
 from apps.controle.models import ControlePrixRevient
 from apps.utilisateurs.models import Utilisateur
 
@@ -20,6 +21,10 @@ from .models import Notification
 
 def _admins():
     return Utilisateur.objects.filter(role="ADMIN")
+
+
+def _magasiniers():
+    return Utilisateur.objects.filter(role="MAGASINIER")
 
 
 def _notifier(destinataires, categorie, message, reference_objet_id=None):
@@ -163,3 +168,81 @@ def _notifier_controle_prix_revient(sender, instance, created, **kwargs):
         )
     _notifier(destinataires, Notification.Categorie.CONTROLE, message, instance.pk)
 
+
+# ---------------------------------------------------------------------
+# MouvementStock (RG18 etendu au stock — categorie STOCK jusqu'ici
+# definie sur le modele mais jamais declenchee)
+# ---------------------------------------------------------------------
+@receiver(post_save, sender=MouvementStock)
+def _notifier_mouvement_stock(sender, instance, created, **kwargs):
+    """
+    Deux notifications distinctes peuvent etre generees a la creation d'un
+    mouvement de stock :
+
+    1. Une sortie rattachee a un dossier de fabrication est confirmee : le
+       Chef d'atelier concerne (et l'Administrateur) sont notifies que la
+       matiere demandee a bien ete sortie du magasin (boucle du circuit
+       decrit au PR-07 du manuel de procedure).
+    2. L'article mouvemente vient de franchir son seuil de securite : le
+       Magasinier et l'Administrateur sont avertis, afin de declencher un
+       reapprovisionnement avant rupture.
+
+    Important : Article.quantite_stock n'est mis a jour, de facon atomique,
+    qu'apres l'appel a super().save() dans MouvementStock.save() — donc
+    apres que ce signal post_save se soit deja declenche. On reporte donc
+    la lecture de l'article a la fin de la transaction (transaction.on_commit)
+    pour etre certain de lire la quantite reellement en base.
+    """
+    if not created:
+        return
+
+    mouvement_id = instance.pk
+    article_id = instance.article_id
+    dossier_id = instance.dossier_id
+    type_mouvement = instance.type_mouvement
+    quantite = instance.quantite
+
+    def _apres_commit():
+        try:
+            article = Article.objects.get(pk=article_id)
+        except Article.DoesNotExist:
+            return
+
+        if type_mouvement == MouvementStock.TypeMouvement.SORTIE and dossier_id:
+            try:
+                dossier = DossierFabrication.objects.select_related("atelier", "commande").get(
+                    pk=dossier_id
+                )
+            except DossierFabrication.DoesNotExist:
+                dossier = None
+            if dossier is not None:
+                message = (
+                    f"Sortie de {quantite} {article.unite} de « {article.designation} » "
+                    f"confirmée pour le dossier {dossier.numero_dossier}."
+                )
+                destinataires = list(_admins())
+                if dossier.atelier.chef_atelier_id:
+                    destinataires.append(dossier.atelier.chef_atelier)
+                _notifier(destinataires, Notification.Categorie.STOCK, message, mouvement_id)
+
+        # Quantite avant ce mouvement, deduite du delta applique en base.
+        quantite_avant = (
+            article.quantite_stock + quantite
+            if type_mouvement == MouvementStock.TypeMouvement.SORTIE
+            else article.quantite_stock - quantite
+        )
+        etait_en_alerte = quantite_avant <= article.seuil_securite
+
+        if article.est_en_alerte and not etait_en_alerte:
+            message_alerte = (
+                f"Stock de « {article.designation} » passé sous le seuil de sécurité "
+                f"({article.quantite_stock} {article.unite} restants, seuil {article.seuil_securite})."
+            )
+            _notifier(
+                list(_admins()) + list(_magasiniers()),
+                Notification.Categorie.STOCK,
+                message_alerte,
+                article.pk,
+            )
+
+    transaction.on_commit(_apres_commit)
