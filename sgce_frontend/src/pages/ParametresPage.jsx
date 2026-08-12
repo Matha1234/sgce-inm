@@ -1,16 +1,27 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
-  Alert, Avatar, Box, Button, Card, CardContent, CircularProgress, Divider,
-  Grid, IconButton, Stack, TextField, Tooltip, Typography,
+  Alert, Avatar, Box, Button, Card, CardContent, Chip, CircularProgress, Divider,
+  Grid, IconButton, InputAdornment, Stack, TextField, Tooltip, Typography,
 } from "@mui/material";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import SaveIcon from "@mui/icons-material/Save";
 import LockResetIcon from "@mui/icons-material/LockReset";
+import BadgeIcon from "@mui/icons-material/Badge";
+import SecurityIcon from "@mui/icons-material/Security";
+import PersonOutlineIcon from "@mui/icons-material/PersonOutlined";
+import EventAvailableIcon from "@mui/icons-material/EventAvailable";
+import Visibility from "@mui/icons-material/Visibility";
+import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import { useDispatch, useSelector } from "react-redux";
 
 import { changerMotDePasse, mettreAJourPhotoProfil, mettreAJourProfil } from "../api/utilisateursApi";
 import { setUtilisateur } from "../store/authSlice";
 import { COULEURS_ROLES, LIBELLES_ROLES } from "../constants/roles";
+
+function formaterDate(valeur) {
+  if (!valeur) return "—";
+  return new Date(valeur).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+}
 
 export default function ParametresPage() {
   const dispatch = useDispatch();
@@ -27,10 +38,34 @@ export default function ParametresPage() {
   const [ancienMotDePasse, setAncienMotDePasse] = useState("");
   const [nouveauMotDePasse, setNouveauMotDePasse] = useState("");
   const [confirmationMotDePasse, setConfirmationMotDePasse] = useState("");
+  const [voirAncien, setVoirAncien] = useState(false);
+  const [voirNouveau, setVoirNouveau] = useState(false);
+  const [voirConfirmation, setVoirConfirmation] = useState(false);
   const [enregistrementMdp, setEnregistrementMdp] = useState(false);
   const [messageMdp, setMessageMdp] = useState(null);
 
   const couleurAvatar = COULEURS_ROLES[utilisateur?.role] || "#455A64";
+
+  const profilModifie =
+    prenom !== (utilisateur?.first_name || "") ||
+    nom !== (utilisateur?.last_name || "") ||
+    email !== (utilisateur?.email || "");
+
+  const forceMotDePasse = useMemo(() => {
+    if (!nouveauMotDePasse) return null;
+    let score = 0;
+    if (nouveauMotDePasse.length >= 8) score += 1;
+    if (/[A-Z]/.test(nouveauMotDePasse)) score += 1;
+    if (/[0-9]/.test(nouveauMotDePasse)) score += 1;
+    if (/[^A-Za-z0-9]/.test(nouveauMotDePasse)) score += 1;
+    const paliers = [
+      { seuil: 1, libelle: "Faible", couleur: "error" },
+      { seuil: 2, libelle: "Moyen", couleur: "warning" },
+      { seuil: 3, libelle: "Bon", couleur: "info" },
+      { seuil: 4, libelle: "Excellent", couleur: "success" },
+    ];
+    return paliers.find((p) => p.seuil === Math.max(score, 1));
+  }, [nouveauMotDePasse]);
 
   const gererEnregistrementProfil = async (evenement) => {
     evenement.preventDefault();
@@ -41,7 +76,7 @@ export default function ParametresPage() {
       dispatch(setUtilisateur(donnees));
       setMessageProfil({ type: "success", texte: "Profil mis à jour avec succès." });
     } catch {
-      setMessageProfil({ type: "error", texte: "Impossible de mettre à jour le profil." });
+      setMessageProfil({ type: "error", texte: "Impossible de mettre à jour le profil. Réessayez." });
     } finally {
       setEnregistrementProfil(false);
     }
@@ -52,6 +87,7 @@ export default function ParametresPage() {
     evenement.target.value = "";
     if (!fichier) return;
     setTeleversementPhoto(true);
+    setMessageProfil(null);
     try {
       const donnees = await mettreAJourPhotoProfil(fichier);
       dispatch(setUtilisateur(donnees));
@@ -92,18 +128,24 @@ export default function ParametresPage() {
 
   return (
     <Box>
-      <Typography variant="h4" sx={{ mb: 3, fontWeight: 600 }}>
+      <Typography variant="h4" sx={{ fontWeight: 600 }}>
         Paramètres du compte
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        Gérez vos informations personnelles, votre photo et la sécurité de votre compte.
       </Typography>
 
       <Grid container spacing={3}>
         <Grid item xs={12} md={4}>
-          <Card>
+          <Card sx={{ position: "sticky", top: 16 }}>
             <CardContent sx={{ textAlign: "center" }}>
               <Box sx={{ position: "relative", display: "inline-block", mb: 1.5 }}>
                 <Avatar
                   src={utilisateur?.photo || undefined}
-                  sx={{ width: 96, height: 96, bgcolor: couleurAvatar, fontSize: 32, mx: "auto" }}
+                  sx={{
+                    width: 100, height: 100, bgcolor: couleurAvatar, fontSize: 34, mx: "auto",
+                    boxShadow: "0 0 0 4px rgba(0,0,0,0.04)",
+                  }}
                 >
                   {(utilisateur?.first_name?.[0] || utilisateur?.username?.[0] || "?").toUpperCase()}
                 </Avatar>
@@ -112,8 +154,8 @@ export default function ParametresPage() {
                     component="label"
                     disabled={televersementPhoto}
                     sx={{
-                      position: "absolute", bottom: 0, right: 0, bgcolor: "primary.main", color: "#fff",
-                      width: 32, height: 32, "&:hover": { bgcolor: "primary.dark" },
+                      position: "absolute", bottom: 2, right: 2, bgcolor: "primary.main", color: "#fff",
+                      width: 34, height: 34, boxShadow: 2, "&:hover": { bgcolor: "primary.dark" },
                     }}
                   >
                     {televersementPhoto ? (
@@ -125,12 +167,42 @@ export default function ParametresPage() {
                   </IconButton>
                 </Tooltip>
               </Box>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                {utilisateur?.username}
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }} noWrap>
+                {utilisateur?.first_name || utilisateur?.last_name
+                  ? `${utilisateur?.first_name || ""} ${utilisateur?.last_name || ""}`.trim()
+                  : utilisateur?.username}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {LIBELLES_ROLES[utilisateur?.role] || utilisateur?.role}
+              <Typography variant="body2" color="text.secondary" noWrap>
+                @{utilisateur?.username}
               </Typography>
+              <Chip
+                label={LIBELLES_ROLES[utilisateur?.role] || utilisateur?.role}
+                size="small"
+                sx={{ bgcolor: couleurAvatar, color: "#fff", fontWeight: 500, mt: 1.25 }}
+              />
+
+              <Divider sx={{ my: 2 }} />
+
+              <Stack spacing={1.25} sx={{ textAlign: "left" }}>
+                <Stack direction="row" spacing={1.25} alignItems="center">
+                  <PersonOutlineIcon fontSize="small" color="action" />
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.2 }}>
+                      Email
+                    </Typography>
+                    <Typography variant="body2" noWrap>{utilisateur?.email || "—"}</Typography>
+                  </Box>
+                </Stack>
+                <Stack direction="row" spacing={1.25} alignItems="center">
+                  <EventAvailableIcon fontSize="small" color="action" />
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.2 }}>
+                      Membre depuis
+                    </Typography>
+                    <Typography variant="body2" noWrap>{formaterDate(utilisateur?.date_joined)}</Typography>
+                  </Box>
+                </Stack>
+              </Stack>
             </CardContent>
           </Card>
         </Grid>
@@ -138,8 +210,12 @@ export default function ParametresPage() {
         <Grid item xs={12} md={8}>
           <Card sx={{ mb: 3 }}>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Informations personnelles
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 0.5 }}>
+                <BadgeIcon color="action" fontSize="small" />
+                <Typography variant="h6">Informations personnelles</Typography>
+              </Stack>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Ces informations sont visibles par les autres utilisateurs du SGCE-INM (annuaire, messagerie).
               </Typography>
               {messageProfil && (
                 <Alert severity={messageProfil.type} sx={{ mb: 2 }}>
@@ -154,8 +230,13 @@ export default function ParametresPage() {
                   </Stack>
                   <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} fullWidth />
                   <Box>
-                    <Button type="submit" variant="contained" startIcon={<SaveIcon />} disabled={enregistrementProfil}>
-                      Enregistrer
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      startIcon={enregistrementProfil ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
+                      disabled={enregistrementProfil || !profilModifie}
+                    >
+                      {enregistrementProfil ? "Enregistrement…" : "Enregistrer"}
                     </Button>
                   </Box>
                 </Stack>
@@ -165,8 +246,12 @@ export default function ParametresPage() {
 
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Sécurité
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 0.5 }}>
+                <SecurityIcon color="action" fontSize="small" />
+                <Typography variant="h6">Sécurité</Typography>
+              </Stack>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Choisissez un mot de passe d'au moins 8 caractères, combinant majuscules, chiffres et symboles.
               </Typography>
               <Divider sx={{ mb: 2 }} />
               {messageMdp && (
@@ -178,31 +263,83 @@ export default function ParametresPage() {
                 <Stack spacing={2} sx={{ maxWidth: 420 }}>
                   <TextField
                     label="Mot de passe actuel"
-                    type="password"
+                    type={voirAncien ? "text" : "password"}
                     value={ancienMotDePasse}
                     onChange={(e) => setAncienMotDePasse(e.target.value)}
                     fullWidth
                     required
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton size="small" onClick={() => setVoirAncien((v) => !v)} edge="end">
+                            {voirAncien ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
                   />
                   <TextField
                     label="Nouveau mot de passe"
-                    type="password"
+                    type={voirNouveau ? "text" : "password"}
                     value={nouveauMotDePasse}
                     onChange={(e) => setNouveauMotDePasse(e.target.value)}
                     fullWidth
                     required
+                    helperText={
+                      forceMotDePasse ? (
+                        <Box component="span" sx={{ color: `${forceMotDePasse.couleur}.main`, fontWeight: 600 }}>
+                          Robustesse : {forceMotDePasse.libelle}
+                        </Box>
+                      ) : (
+                        " "
+                      )
+                    }
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton size="small" onClick={() => setVoirNouveau((v) => !v)} edge="end">
+                            {voirNouveau ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
                   />
                   <TextField
                     label="Confirmer le nouveau mot de passe"
-                    type="password"
+                    type={voirConfirmation ? "text" : "password"}
                     value={confirmationMotDePasse}
                     onChange={(e) => setConfirmationMotDePasse(e.target.value)}
                     fullWidth
                     required
+                    error={Boolean(confirmationMotDePasse) && confirmationMotDePasse !== nouveauMotDePasse}
+                    helperText={
+                      Boolean(confirmationMotDePasse) && confirmationMotDePasse !== nouveauMotDePasse
+                        ? "Ne correspond pas au nouveau mot de passe."
+                        : " "
+                    }
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton size="small" onClick={() => setVoirConfirmation((v) => !v)} edge="end">
+                            {voirConfirmation ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
                   />
                   <Box>
-                    <Button type="submit" variant="outlined" startIcon={<LockResetIcon />} disabled={enregistrementMdp}>
-                      Changer le mot de passe
+                    <Button
+                      type="submit"
+                      variant="outlined"
+                      startIcon={enregistrementMdp ? <CircularProgress size={16} /> : <LockResetIcon />}
+                      disabled={
+                        enregistrementMdp ||
+                        !ancienMotDePasse ||
+                        !nouveauMotDePasse ||
+                        !confirmationMotDePasse
+                      }
+                    >
+                      {enregistrementMdp ? "Modification…" : "Changer le mot de passe"}
                     </Button>
                   </Box>
                 </Stack>
