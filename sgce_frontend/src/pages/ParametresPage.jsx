@@ -3,11 +3,13 @@ import {
   Alert, Avatar, Box, Button, Card, CardContent, Chip, CircularProgress, Divider,
   Grid, IconButton, InputAdornment, Stack, TextField, Tooltip, Typography,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import SaveIcon from "@mui/icons-material/Save";
 import LockResetIcon from "@mui/icons-material/LockReset";
 import BadgeIcon from "@mui/icons-material/Badge";
 import SecurityIcon from "@mui/icons-material/Security";
+import SettingsIcon from "@mui/icons-material/Settings";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutlined";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 import Visibility from "@mui/icons-material/Visibility";
@@ -21,6 +23,43 @@ import { COULEURS_ROLES, LIBELLES_ROLES } from "../constants/roles";
 function formaterDate(valeur) {
   if (!valeur) return "—";
   return new Date(valeur).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+}
+
+// Pastille carrée arrondie, fond teinté + icône pleine couleur : même
+// traitement que sur la page Messagerie, pour une identité visuelle
+// cohérente entre les pages de l'application.
+function PastilleIcone({ icone, taille = 40 }) {
+  return (
+    <Box
+      sx={{
+        width: taille, height: taille, borderRadius: 1.5, display: "flex",
+        alignItems: "center", justifyContent: "center", flexShrink: 0,
+        bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
+        color: "primary.main",
+      }}
+    >
+      {icone}
+    </Box>
+  );
+}
+
+// En-tête de section réutilisé pour chaque carte (icône + titre + phrase
+// d'explication), afin que les trois blocs de la page suivent exactement
+// la même grille verticale.
+function EnTeteSection({ icone, titre, description }) {
+  return (
+    <Box sx={{ mb: 2.5 }}>
+      <Stack direction="row" alignItems="center" spacing={1.25} sx={{ mb: 0.5 }}>
+        {icone}
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>
+          {titre}
+        </Typography>
+      </Stack>
+      <Typography variant="body2" color="text.secondary">
+        {description}
+      </Typography>
+    </Box>
+  );
 }
 
 export default function ParametresPage() {
@@ -128,22 +167,28 @@ export default function ParametresPage() {
 
   return (
     <Box>
-      <Typography variant="h4" sx={{ fontWeight: 600 }}>
-        Paramètres du compte
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Gérez vos informations personnelles, votre photo et la sécurité de votre compte.
-      </Typography>
+      {/* En-tête de page : même gabarit que la page Messagerie (pastille + titre + sous-titre) */}
+      <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 3 }}>
+        <PastilleIcone icone={<SettingsIcon sx={{ fontSize: 18 }} />} taille={34} />
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+            Paramètres du compte
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+            Gérez vos informations personnelles, votre photo et la sécurité de votre compte.
+          </Typography>
+        </Box>
+      </Stack>
 
       <Grid container spacing={3}>
         <Grid item xs={12} md={4}>
-          <Card sx={{ position: "sticky", top: 16 }}>
-            <CardContent sx={{ textAlign: "center" }}>
-              <Box sx={{ position: "relative", display: "inline-block", mb: 1.5 }}>
+          <Card sx={{ position: "sticky", top: 16, boxShadow: 1 }}>
+            <CardContent sx={{ textAlign: "center", p: 3.5 }}>
+              <Box sx={{ position: "relative", display: "inline-block", mb: 2 }}>
                 <Avatar
                   src={utilisateur?.photo || undefined}
                   sx={{
-                    width: 100, height: 100, bgcolor: couleurAvatar, fontSize: 34, mx: "auto",
+                    width: 104, height: 104, bgcolor: couleurAvatar, fontSize: 36, mx: "auto",
                     boxShadow: "0 0 0 4px rgba(0,0,0,0.04)",
                   }}
                 >
@@ -167,24 +212,25 @@ export default function ParametresPage() {
                   </IconButton>
                 </Tooltip>
               </Box>
+
               <Typography variant="subtitle1" sx={{ fontWeight: 700 }} noWrap>
                 {utilisateur?.first_name || utilisateur?.last_name
                   ? `${utilisateur?.first_name || ""} ${utilisateur?.last_name || ""}`.trim()
                   : utilisateur?.username}
               </Typography>
-              <Typography variant="body2" color="text.secondary" noWrap>
+              <Typography variant="body2" color="text.secondary" noWrap sx={{ mb: 1.25 }}>
                 @{utilisateur?.username}
               </Typography>
               <Chip
                 label={LIBELLES_ROLES[utilisateur?.role] || utilisateur?.role}
                 size="small"
-                sx={{ bgcolor: couleurAvatar, color: "#fff", fontWeight: 500, mt: 1.25 }}
+                sx={{ bgcolor: couleurAvatar, color: "#fff", fontWeight: 500 }}
               />
 
-              <Divider sx={{ my: 2 }} />
+              <Divider sx={{ my: 2.5 }} />
 
-              <Stack spacing={1.25} sx={{ textAlign: "left" }}>
-                <Stack direction="row" spacing={1.25} alignItems="center">
+              <Stack spacing={1.5} sx={{ textAlign: "left" }}>
+                <Stack direction="row" spacing={1.5} alignItems="center">
                   <PersonOutlineIcon fontSize="small" color="action" />
                   <Box sx={{ minWidth: 0 }}>
                     <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.2 }}>
@@ -193,7 +239,7 @@ export default function ParametresPage() {
                     <Typography variant="body2" noWrap>{utilisateur?.email || "—"}</Typography>
                   </Box>
                 </Stack>
-                <Stack direction="row" spacing={1.25} alignItems="center">
+                <Stack direction="row" spacing={1.5} alignItems="center">
                   <EventAvailableIcon fontSize="small" color="action" />
                   <Box sx={{ minWidth: 0 }}>
                     <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.2 }}>
@@ -208,28 +254,29 @@ export default function ParametresPage() {
         </Grid>
 
         <Grid item xs={12} md={8}>
-          <Card sx={{ mb: 3 }}>
-            <CardContent>
-              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 0.5 }}>
-                <BadgeIcon color="action" fontSize="small" />
-                <Typography variant="h6">Informations personnelles</Typography>
-              </Stack>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Ces informations sont visibles par les autres utilisateurs du SGCE-INM (annuaire, messagerie).
-              </Typography>
+          <Card sx={{ mb: 3, boxShadow: 1 }}>
+            <CardContent sx={{ p: 3.5 }}>
+              <EnTeteSection
+                icone={<BadgeIcon color="primary" fontSize="small" />}
+                titre="Informations personnelles"
+                description="Ces informations sont visibles par les autres utilisateurs du SGCE-INM (annuaire, messagerie)."
+              />
+              <Divider sx={{ mb: 2.5 }} />
+
               {messageProfil && (
-                <Alert severity={messageProfil.type} sx={{ mb: 2 }}>
+                <Alert severity={messageProfil.type} sx={{ mb: 2.5 }}>
                   {messageProfil.texte}
                 </Alert>
               )}
+
               <Box component="form" onSubmit={gererEnregistrementProfil}>
-                <Stack spacing={2}>
-                  <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                <Stack spacing={2.5}>
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={2.5}>
                     <TextField label="Prénom" value={prenom} onChange={(e) => setPrenom(e.target.value)} fullWidth />
                     <TextField label="Nom" value={nom} onChange={(e) => setNom(e.target.value)} fullWidth />
                   </Stack>
                   <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} fullWidth />
-                  <Box>
+                  <Box sx={{ pt: 0.5 }}>
                     <Button
                       type="submit"
                       variant="contained"
@@ -244,23 +291,23 @@ export default function ParametresPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent>
-              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 0.5 }}>
-                <SecurityIcon color="action" fontSize="small" />
-                <Typography variant="h6">Sécurité</Typography>
-              </Stack>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Choisissez un mot de passe d'au moins 8 caractères, combinant majuscules, chiffres et symboles.
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
+          <Card sx={{ boxShadow: 1 }}>
+            <CardContent sx={{ p: 3.5 }}>
+              <EnTeteSection
+                icone={<SecurityIcon color="primary" fontSize="small" />}
+                titre="Sécurité"
+                description="Choisissez un mot de passe d'au moins 8 caractères, combinant majuscules, chiffres et symboles."
+              />
+              <Divider sx={{ mb: 2.5 }} />
+
               {messageMdp && (
-                <Alert severity={messageMdp.type} sx={{ mb: 2 }}>
+                <Alert severity={messageMdp.type} sx={{ mb: 2.5 }}>
                   {messageMdp.texte}
                 </Alert>
               )}
+
               <Box component="form" onSubmit={gererChangementMotDePasse}>
-                <Stack spacing={2} sx={{ maxWidth: 420 }}>
+                <Stack spacing={2.5} sx={{ maxWidth: 440 }}>
                   <TextField
                     label="Mot de passe actuel"
                     type={voirAncien ? "text" : "password"}
@@ -271,9 +318,11 @@ export default function ParametresPage() {
                     InputProps={{
                       endAdornment: (
                         <InputAdornment position="end">
-                          <IconButton size="small" onClick={() => setVoirAncien((v) => !v)} edge="end">
-                            {voirAncien ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                          </IconButton>
+                          <Tooltip title={voirAncien ? "Masquer le mot de passe" : "Afficher le mot de passe"}>
+                            <IconButton size="small" onClick={() => setVoirAncien((v) => !v)} edge="end">
+                              {voirAncien ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                            </IconButton>
+                          </Tooltip>
                         </InputAdornment>
                       ),
                     }}
@@ -297,9 +346,11 @@ export default function ParametresPage() {
                     InputProps={{
                       endAdornment: (
                         <InputAdornment position="end">
-                          <IconButton size="small" onClick={() => setVoirNouveau((v) => !v)} edge="end">
-                            {voirNouveau ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                          </IconButton>
+                          <Tooltip title={voirNouveau ? "Masquer le mot de passe" : "Afficher le mot de passe"}>
+                            <IconButton size="small" onClick={() => setVoirNouveau((v) => !v)} edge="end">
+                              {voirNouveau ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                            </IconButton>
+                          </Tooltip>
                         </InputAdornment>
                       ),
                     }}
@@ -320,14 +371,16 @@ export default function ParametresPage() {
                     InputProps={{
                       endAdornment: (
                         <InputAdornment position="end">
-                          <IconButton size="small" onClick={() => setVoirConfirmation((v) => !v)} edge="end">
-                            {voirConfirmation ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                          </IconButton>
+                          <Tooltip title={voirConfirmation ? "Masquer le mot de passe" : "Afficher le mot de passe"}>
+                            <IconButton size="small" onClick={() => setVoirConfirmation((v) => !v)} edge="end">
+                              {voirConfirmation ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                            </IconButton>
+                          </Tooltip>
                         </InputAdornment>
                       ),
                     }}
                   />
-                  <Box>
+                  <Box sx={{ pt: 0.5 }}>
                     <Button
                       type="submit"
                       variant="outlined"

@@ -4,6 +4,7 @@ import {
   DialogActions, DialogContent, DialogTitle, Divider, IconButton, InputAdornment,
   List, ListItemButton, ListItemText, Stack, Tab, Tabs, TextField, Tooltip, Typography,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
 import MarkEmailReadIcon from "@mui/icons-material/MarkEmailRead";
@@ -46,6 +47,24 @@ function formaterDateRelative(valeur) {
   if (memeJour) return `Aujourd'hui à ${heure}`;
   if (date.toDateString() === hier.toDateString()) return `Hier à ${heure}`;
   return date.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) + ` à ${heure}`;
+}
+
+// Pastille carrée arrondie, fond teinté + icône pleine couleur : traitement
+// visuel unique pour l'icône de page et l'en-tête du volet de lecture, afin
+// que les deux zones se répondent visuellement.
+function PastilleIcone({ icone, couleur = "primary.main", taille = 40 }) {
+  return (
+    <Box
+      sx={{
+        width: taille, height: taille, borderRadius: 1.5, display: "flex",
+        alignItems: "center", justifyContent: "center", flexShrink: 0,
+        bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
+        color: couleur,
+      }}
+    >
+      {icone}
+    </Box>
+  );
 }
 
 export default function MessageriePage() {
@@ -183,7 +202,7 @@ export default function MessageriePage() {
 
   if (chargement) {
     return (
-      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, mt: 10 }}>
+      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, mt: 12 }}>
         <CircularProgress />
         <Typography variant="body2" color="text.secondary">
           Chargement de la messagerie…
@@ -194,28 +213,44 @@ export default function MessageriePage() {
 
   return (
     <Box>
-      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 3 }} flexWrap="wrap" rowGap={2}>
+      {/* En-tête de page : pictogramme + titre + sous-titre sur leur propre ligne */}
+      <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 1 }}>
+        <Badge badgeContent={nombreNonLus} color="error" overlap="circular">
+          <PastilleIcone icone={<MailOutlineIcon sx={{ fontSize: 18 }} />} taille={34} />
+        </Badge>
         <Box>
-          <Stack direction="row" alignItems="center" spacing={1.25}>
-            <Badge badgeContent={nombreNonLus} color="error">
-              <MailOutlineIcon sx={{ fontSize: 28, color: "primary.main" }} />
-            </Badge>
-            <Typography variant="h4" sx={{ fontWeight: 600 }}>
-              Messagerie
-            </Typography>
-          </Stack>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          <Typography variant="h5" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+            Messagerie
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
             Échangez directement avec les autres utilisateurs du SGCE-INM.
           </Typography>
         </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={ouvrirDialogueNouveauMessage}>
-          Nouveau message
-        </Button>
       </Stack>
 
-      {erreur && <Alert severity="warning" sx={{ mb: 2 }}>{erreur}</Alert>}
+      {/* Action principale : ligne séparée, collée au bord droit */}
+      <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 3 }}>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon sx={{ fontSize: 14 }} />}
+          onClick={ouvrirDialogueNouveauMessage}
+          disableElevation
+          sx={{
+            px: 1.25,
+            py: 0.3,
+            minHeight: 0,
+            fontSize: 11.5,
+            lineHeight: 1.6,
+          }}
+        >
+          Nouveau message
+        </Button>
+      </Box>
 
-      <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start", flexWrap: { xs: "wrap", md: "nowrap" } }}>
+      {erreur && <Alert severity="warning" sx={{ mb: 3 }}>{erreur}</Alert>}
+
+      <Stack direction={{ xs: "column", md: "row" }} spacing={3} alignItems="flex-start">
+        {/* Colonne gauche : onglets, recherche et liste des messages */}
         <Box sx={{ width: { xs: "100%", md: 380 }, bgcolor: "background.paper", borderRadius: 2, boxShadow: 1, overflow: "hidden" }}>
           <Tabs
             value={onglet}
@@ -228,13 +263,14 @@ export default function MessageriePage() {
             <Tab icon={<InboxIcon fontSize="small" />} iconPosition="start" label={`Reçus${nombreNonLus > 0 ? ` (${nombreNonLus})` : ""}`} />
             <Tab icon={<SendIcon fontSize="small" />} iconPosition="start" label="Envoyés" />
           </Tabs>
-          <Box sx={{ px: 1.5, py: 1 }}>
+          <Box sx={{ px: 2, py: 1.5, bgcolor: "grey.50" }}>
             <TextField
               size="small"
               fullWidth
               placeholder="Rechercher un message…"
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
+              sx={{ bgcolor: "background.paper" }}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -266,6 +302,9 @@ export default function MessageriePage() {
                   onClick={() => gererOuvrirMessage(message, onglet === 0)}
                   sx={{
                     alignItems: "flex-start",
+                    gap: 1.25,
+                    py: 1.4,
+                    px: 2,
                     borderBottom: "1px solid",
                     borderColor: "divider",
                     borderLeft: "3px solid",
@@ -274,10 +313,11 @@ export default function MessageriePage() {
                     "&:hover .bouton-supprimer-message": { opacity: 1 },
                   }}
                 >
-                  <Avatar sx={{ width: 36, height: 36, mr: 1.5, mt: 0.25, fontSize: 14, bgcolor: couleurDepuisNom(correspondant) }}>
+                  <Avatar sx={{ width: 36, height: 36, mt: 0.25, fontSize: 14, bgcolor: couleurDepuisNom(correspondant) }}>
                     {(correspondant || "?").charAt(0).toUpperCase()}
                   </Avatar>
                   <ListItemText
+                    sx={{ my: 0 }}
                     primary={
                       <Typography variant="body2" sx={{ fontWeight: nonLu ? 700 : 500 }} noWrap>
                         {correspondant}
@@ -287,13 +327,14 @@ export default function MessageriePage() {
                       <>
                         <Typography
                           variant="body2"
+                          component="span"
                           color={nonLu ? "text.primary" : "text.secondary"}
                           noWrap
-                          sx={{ fontWeight: nonLu ? 600 : 400 }}
+                          sx={{ display: "block", fontWeight: nonLu ? 600 : 400 }}
                         >
                           {message.objet || message.contenu}
                         </Typography>
-                        <Typography variant="caption" color="text.disabled">
+                        <Typography variant="caption" component="span" color="text.disabled" sx={{ display: "block", mt: 0.25 }}>
                           {formaterDateRelative(message.date_envoi)}
                         </Typography>
                       </>
@@ -315,34 +356,40 @@ export default function MessageriePage() {
           </List>
         </Box>
 
-        <Box sx={{ flexGrow: 1, bgcolor: "background.paper", borderRadius: 2, boxShadow: 1, p: 3, minHeight: 420 }}>
+        {/* Colonne droite : lecture du message sélectionné */}
+        <Box sx={{ flexGrow: 1, width: "100%", bgcolor: "background.paper", borderRadius: 2, boxShadow: 1, p: { xs: 2.5, sm: 3.5 }, minHeight: 440 }}>
           {!messageOuvert && (
-            <Stack alignItems="center" justifyContent="center" sx={{ height: 380 }} spacing={1}>
-              <InboxIcon sx={{ fontSize: 44, color: "text.disabled" }} />
+            <Stack alignItems="center" justifyContent="center" sx={{ height: 380 }} spacing={1.5}>
+              <PastilleIcone icone={<InboxIcon sx={{ fontSize: 24 }} />} taille={56} />
               <Typography color="text.secondary">Sélectionnez un message pour l'afficher</Typography>
             </Stack>
           )}
           {messageOuvert && (
             <Box>
-              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" rowGap={1}>
-                <Stack direction="row" spacing={2} alignItems="flex-start">
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                justifyContent="space-between"
+                alignItems={{ xs: "flex-start", sm: "flex-start" }}
+                spacing={2}
+              >
+                <Stack direction="row" spacing={2} alignItems="flex-start" sx={{ minWidth: 0 }}>
                   <Avatar
                     sx={{
-                      width: 46, height: 46, fontSize: 18,
+                      width: 48, height: 48, fontSize: 18, flexShrink: 0,
                       bgcolor: couleurDepuisNom(messageOuvert.expediteur_nom),
                     }}
                   >
                     {(messageOuvert.expediteur_nom || "?").charAt(0).toUpperCase()}
                   </Avatar>
-                  <Box>
-                    <Typography variant="h6" sx={{ lineHeight: 1.25 }}>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.3 }}>
                       {messageOuvert.objet || "(Sans objet)"}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
                       De <strong>{messageOuvert.expediteur_nom}</strong> à{" "}
                       <strong>{messageOuvert.destinataire_nom}</strong>
                     </Typography>
-                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.75 }}>
                       <Typography variant="caption" color="text.disabled">
                         {formaterDateRelative(messageOuvert.date_envoi)}
                       </Typography>
@@ -352,9 +399,9 @@ export default function MessageriePage() {
                     </Stack>
                   </Box>
                 </Stack>
-                <Stack direction="row" spacing={1}>
+                <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
                   {messageOuvert.expediteur !== utilisateur?.id && (
-                    <Button size="small" startIcon={<ReplyIcon />} onClick={() => gererRepondre(messageOuvert)}>
+                    <Button size="small" variant="outlined" startIcon={<ReplyIcon />} onClick={() => gererRepondre(messageOuvert)}>
                       Répondre
                     </Button>
                   )}
@@ -365,20 +412,23 @@ export default function MessageriePage() {
                   </Tooltip>
                 </Stack>
               </Stack>
-              <Divider sx={{ my: 2.5 }} />
-              <Typography variant="body1" sx={{ whiteSpace: "pre-wrap", lineHeight: 1.7 }}>
+              <Divider sx={{ my: 3 }} />
+              <Typography variant="body1" sx={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>
                 {messageOuvert.contenu}
               </Typography>
             </Box>
           )}
         </Box>
-      </Box>
+      </Stack>
 
       <Dialog open={dialogueOuvert} onClose={() => setDialogueOuvert(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>Nouveau message</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 1.25 }}>
+          <MailOutlineIcon color="primary" fontSize="small" />
+          Nouveau message
+        </DialogTitle>
         <DialogContent>
           {erreurEnvoi && <Alert severity="error" sx={{ mb: 2 }}>{erreurEnvoi}</Alert>}
-          <Stack spacing={2} sx={{ mt: 1 }}>
+          <Stack spacing={2.5} sx={{ mt: 1 }}>
             <Autocomplete
               options={annuaire}
               value={destinataire}
@@ -421,7 +471,7 @@ export default function MessageriePage() {
             />
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
           <Button onClick={() => setDialogueOuvert(false)}>Annuler</Button>
           <Button
             variant="contained"
