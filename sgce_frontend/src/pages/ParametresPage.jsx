@@ -181,7 +181,7 @@ export default function ParametresPage() {
       </Stack>
 
       <Grid container spacing={3}>
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card sx={{ position: "sticky", top: 16, boxShadow: 1 }}>
             <CardContent sx={{ textAlign: "center", p: 3.5 }}>
               <Box sx={{ position: "relative", display: "inline-block", mb: 2 }}>
@@ -253,7 +253,7 @@ export default function ParametresPage() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={8}>
+        <Grid size={{ xs: 12, md: 8 }}>
           <Card sx={{ mb: 3, boxShadow: 1 }}>
             <CardContent sx={{ p: 3.5 }}>
               <EnTeteSection
@@ -319,7 +319,7 @@ export default function ParametresPage() {
                       endAdornment: (
                         <InputAdornment position="end">
                           <Tooltip title={voirAncien ? "Masquer le mot de passe" : "Afficher le mot de passe"}>
-                            <IconButton size="small" onClick={() => setVoirAncien((v) => !v)} edge="end">
+                            <IconButton type="button" size="small" onClick={() => setVoirAncien((v) => !v)} edge="end">
                               {voirAncien ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
                             </IconButton>
                           </Tooltip>
@@ -347,7 +347,7 @@ export default function ParametresPage() {
                       endAdornment: (
                         <InputAdornment position="end">
                           <Tooltip title={voirNouveau ? "Masquer le mot de passe" : "Afficher le mot de passe"}>
-                            <IconButton size="small" onClick={() => setVoirNouveau((v) => !v)} edge="end">
+                            <IconButton type="button" size="small" onClick={() => setVoirNouveau((v) => !v)} edge="end">
                               {voirNouveau ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
                             </IconButton>
                           </Tooltip>
@@ -372,7 +372,7 @@ export default function ParametresPage() {
                       endAdornment: (
                         <InputAdornment position="end">
                           <Tooltip title={voirConfirmation ? "Masquer le mot de passe" : "Afficher le mot de passe"}>
-                            <IconButton size="small" onClick={() => setVoirConfirmation((v) => !v)} edge="end">
+                            <IconButton type="button" size="small" onClick={() => setVoirConfirmation((v) => !v)} edge="end">
                               {voirConfirmation ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
                             </IconButton>
                           </Tooltip>

@@ -1,24 +1,111 @@
-import { useEffect, useState } from "react";
-import { Box, Card, CardContent, Typography, CircularProgress, Alert } from "@mui/material";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Alert, Box, Card, CardContent, Chip, CircularProgress, Divider, Grid, IconButton, Stack, Tooltip as TooltipMui, Typography,
+} from "@mui/material";
+import { alpha } from "@mui/material/styles";
+import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import DashboardIcon from "@mui/icons-material/Dashboard";
+import AssignmentIcon from "@mui/icons-material/Assignment";
+import PendingActionsIcon from "@mui/icons-material/PendingActions";
+import CheckCircleOutlinedIcon from "@mui/icons-material/CheckCircleOutlined";
+import PrecisionManufacturingIcon from "@mui/icons-material/PrecisionManufacturing";
+import Inventory2Icon from "@mui/icons-material/Inventory2";
+import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import TrendingDownIcon from "@mui/icons-material/TrendingDown";
+import BalanceIcon from "@mui/icons-material/Balance";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
+import AssessmentIcon from "@mui/icons-material/Assessment";
+import FactCheckIcon from "@mui/icons-material/FactCheck";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import { useSelector } from "react-redux";
 
 import { listerCommandes, listerDossiers, listerArticles } from "../api/commandesApi";
 import { recupererTableauBordRentabilite } from "../api/controleApi";
-import { LIBELLES_STATUT_COMMANDE } from "../constants/roles";
+import { COULEURS_STATUT_COMMANDE, LIBELLES_STATUT_COMMANDE } from "../constants/roles";
 
-function CarteChiffre({ titre, valeur, couleur = "primary.main" }) {
+// Correspondance entre les noms de couleur MUI utilisés par
+// COULEURS_STATUT_COMMANDE (déjà utilisé pour les Chips de statut ailleurs
+// dans l'application) et leur code hexadécimal, pour le graphique Recharts
+// qui a besoin d'une couleur littérale.
+const HEX_PAR_NOM_COULEUR = {
+  default: "#9e9e9e",
+  info: "#0288d1",
+  primary: "#1565c0",
+  warning: "#ed6c02",
+  success: "#2e7d32",
+  error: "#d32f2f",
+};
+
+function normaliser(d) {
+  return Array.isArray(d) ? d : d.results || [];
+}
+
+// Résout une clé de couleur MUI ("success.main", "text.secondary"...) vers
+// la couleur de fond teintée la plus proche. Les clés hors palette
+// catégorielle (text.*, grey.*) retombent sur un gris neutre plutôt que
+// d'être forcées en bleu primaire.
+function fondTeinte(theme, couleur) {
+  const [famille] = couleur.split(".");
+  const categorielle = ["primary", "secondary", "success", "error", "warning", "info"];
+  if (categorielle.includes(famille)) {
+    return alpha(theme.palette[famille].main, 0.1);
+  }
+  return theme.palette.grey[200];
+}
+
+// Pastille carrée arrondie, fond teinté + icône pleine couleur : même
+// traitement que sur les pages Messagerie et Paramètres, pour une identité
+// visuelle cohérente sur l'ensemble de l'application.
+function PastilleIcone({ icone, couleur = "primary.main", taille = 34 }) {
   return (
-    <Card sx={{ minWidth: 200, flex: "1 1 200px" }}>
-      <CardContent>
-        <Typography variant="body2" color="text.secondary">
-          {titre}
-        </Typography>
-        <Typography variant="h3" sx={{ color: couleur, fontWeight: 700 }}>
-          {valeur}
-        </Typography>
+    <Box
+      sx={{
+        width: taille, height: taille, borderRadius: 1.5, display: "flex",
+        alignItems: "center", justifyContent: "center", flexShrink: 0,
+        bgcolor: (theme) => fondTeinte(theme, couleur),
+        color: couleur,
+      }}
+    >
+      {icone}
+    </Box>
+  );
+}
+
+function CarteChiffre({ titre, valeur, icone, couleur = "primary.main" }) {
+  return (
+    <Card
+      sx={{
+        height: "100%",
+        boxShadow: 1,
+        borderLeft: "3px solid",
+        borderLeftColor: couleur,
+        transition: "box-shadow 0.15s, transform 0.15s",
+        "&:hover": { boxShadow: 3, transform: "translateY(-1px)" },
+      }}
+    >
+      <CardContent sx={{ display: "flex", alignItems: "center", gap: 1.75, py: 2.25, "&:last-child": { pb: 2.25 } }}>
+        <PastilleIcone icone={icone} couleur={couleur} taille={42} />
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="body2" color="text.secondary" noWrap>
+            {titre}
+          </Typography>
+          <Typography variant="h5" sx={{ color: couleur, fontWeight: 700, lineHeight: 1.25 }}>
+            {valeur}
+          </Typography>
+        </Box>
       </CardContent>
     </Card>
+  );
+}
+
+function EnTeteSection({ icone, titre }) {
+  return (
+    <Stack direction="row" alignItems="center" spacing={1.25} sx={{ mb: 2 }}>
+      {icone}
+      <Typography variant="h6" sx={{ fontWeight: 700 }}>
+        {titre}
+      </Typography>
+    </Stack>
   );
 }
 
@@ -27,15 +114,18 @@ export default function DashboardHomePage() {
   const role = utilisateur?.role;
 
   const [chargement, setChargement] = useState(true);
+  const [actualisation, setActualisation] = useState(false);
   const [erreur, setErreur] = useState("");
   const [commandes, setCommandes] = useState([]);
   const [dossiers, setDossiers] = useState([]);
   const [articles, setArticles] = useState([]);
   const [rentabilite, setRentabilite] = useState(null);
+  const [derniereMiseAJour, setDerniereMiseAJour] = useState(null);
 
-  useEffect(() => {
-    async function charger() {
-      setChargement(true);
+  const charger = useCallback(
+    async (estActualisation = false) => {
+      if (!role) return;
+      estActualisation ? setActualisation(true) : setChargement(true);
       setErreur("");
       try {
         const taches = [];
@@ -52,107 +142,286 @@ export default function DashboardHomePage() {
           taches.push(recupererTableauBordRentabilite().then(setRentabilite));
         }
         await Promise.all(taches);
+        setDerniereMiseAJour(new Date());
       } catch {
         setErreur("Impossible de charger les données du tableau de bord.");
       } finally {
         setChargement(false);
+        setActualisation(false);
       }
-    }
-    if (role) charger();
+    },
+    [role]
+  );
+
+  useEffect(() => {
+    charger();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role]);
 
-  const normaliser = (d) => (Array.isArray(d) ? d : d.results || []);
-
-  if (chargement) {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  const donneesGraphique = Object.entries(LIBELLES_STATUT_COMMANDE).map(([code, libelle]) => ({
-    statut: libelle,
-    nombre: commandes.filter((c) => c.statut === code).length,
-  }));
+  const donneesGraphique = useMemo(
+    () =>
+      Object.entries(LIBELLES_STATUT_COMMANDE).map(([code, libelle]) => ({
+        code,
+        statut: libelle,
+        nombre: commandes.filter((c) => c.statut === code).length,
+      })),
+    [commandes]
+  );
 
   const articlesEnAlerte = articles.filter(
     (a) => Number(a.quantite_stock) <= Number(a.seuil_securite)
   );
 
   const dossiersEnCours = dossiers.filter((d) => d.statut_production === "EN_COURS");
+  const devisEnCours = commandes.filter((c) => c.statut === "DEVIS").length;
+
+  // Avancement de la production par atelier (EF-7.1) : jusqu'ici calculé
+  // par le backend (dossier.atelier_nom) mais jamais restitué à l'écran.
+  const chargeParAtelier = useMemo(() => {
+    const parAtelier = {};
+    dossiers.forEach((d) => {
+      const nom = d.atelier_nom || "Non affecté";
+      if (!parAtelier[nom]) parAtelier[nom] = { atelier: nom, enCours: 0, total: 0 };
+      parAtelier[nom].total += 1;
+      if (d.statut_production === "EN_COURS") parAtelier[nom].enCours += 1;
+    });
+    return Object.values(parAtelier);
+  }, [dossiers]);
+
+  if (chargement) {
+    return (
+      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, mt: 12 }}>
+        <CircularProgress />
+        <Typography variant="body2" color="text.secondary">
+          Chargement du tableau de bord…
+        </Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box>
-      <Typography variant="h4" sx={{ mb: 3, fontWeight: 600 }}>
-        Tableau de bord
-      </Typography>
-
-      {erreur && <Alert severity="warning" sx={{ mb: 2 }}>{erreur}</Alert>}
-
-      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, mb: 4 }}>
-        {(role === "ADMIN" || role === "AGENT_SDO") && (
-          <>
-            <CarteChiffre titre="Commandes au total" valeur={commandes.length} />
-            <CarteChiffre
-              titre="En attente de devis"
-              valeur={commandes.filter((c) => c.statut === "EN_ATTENTE" || c.statut === "DEVIS").length}
-              couleur="warning.main"
-            />
-            <CarteChiffre
-              titre="Validées"
-              valeur={commandes.filter((c) => c.statut === "VALIDEE").length}
-              couleur="success.main"
-            />
-          </>
-        )}
-        {(role === "ADMIN" || role === "CHEF_ATELIER") && (
-          <>
-            <CarteChiffre titre="Dossiers de fabrication" valeur={dossiers.length} />
-            <CarteChiffre titre="En cours de production" valeur={dossiersEnCours.length} couleur="warning.main" />
-          </>
-        )}
-        {(role === "ADMIN" || role === "MAGASINIER") && (
-          <CarteChiffre
-            titre="Articles en alerte de stock"
-            valeur={articlesEnAlerte.length}
-            couleur={articlesEnAlerte.length > 0 ? "error.main" : "success.main"}
-          />
-        )}
-        {role === "ADMIN" && rentabilite && (
-          <>
-            <CarteChiffre
-              titre="Dossiers bénéficiaires"
-              valeur={rentabilite.nombre_beneficiaires}
-              couleur="success.main"
-            />
-            <CarteChiffre
-              titre="Dossiers déficitaires"
-              valeur={rentabilite.nombre_deficitaires}
-              couleur="error.main"
-            />
-            <CarteChiffre
-              titre="Marge moyenne"
-              valeur={`${rentabilite.marge_moyenne_pourcentage}%`}
-            />
-          </>
-        )}
-      </Box>
-
-      {(role === "ADMIN" || role === "AGENT_SDO") && commandes.length > 0 && (
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Répartition des commandes par statut
+      <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2} sx={{ mb: 3 }}>
+        <Stack direction="row" alignItems="center" spacing={1.5}>
+          <PastilleIcone icone={<DashboardIcon sx={{ fontSize: 18 }} />} />
+          <Box>
+            <Typography variant="h5" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+              Tableau de bord
             </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+              Vue d'ensemble adaptée à votre rôle sur le SGCE-INM.
+            </Typography>
+          </Box>
+        </Stack>
+        <Stack direction="row" alignItems="center" spacing={1}>
+          {derniereMiseAJour && (
+            <Typography variant="caption" color="text.disabled">
+              Actualisé à {derniereMiseAJour.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+            </Typography>
+          )}
+          <TooltipMui title="Actualiser">
+            <span>
+              <IconButton size="small" onClick={() => charger(true)} disabled={actualisation}>
+                {actualisation ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}
+              </IconButton>
+            </span>
+          </TooltipMui>
+        </Stack>
+      </Stack>
+
+      {erreur && <Alert severity="warning" sx={{ mb: 3 }}>{erreur}</Alert>}
+
+      {/* Devis et commandes (SDO / Direction) */}
+      {(role === "ADMIN" || role === "AGENT_SDO") && (
+        <Box sx={{ mb: 4 }}>
+          <EnTeteSection icone={<AssignmentIcon color="primary" fontSize="small" />} titre="Devis et commandes" />
+          <Grid container spacing={2.5}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+              <CarteChiffre titre="Commandes au total" valeur={commandes.length} icone={<AssignmentIcon sx={{ fontSize: 20 }} />} />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+              <CarteChiffre
+                titre="Devis en cours"
+                valeur={devisEnCours}
+                icone={<PendingActionsIcon sx={{ fontSize: 20 }} />}
+                couleur="warning.main"
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+              <CarteChiffre
+                titre="Commandes validées"
+                valeur={commandes.filter((c) => c.statut === "VALIDEE").length}
+                icone={<CheckCircleOutlinedIcon sx={{ fontSize: 20 }} />}
+                couleur="success.main"
+              />
+            </Grid>
+          </Grid>
+        </Box>
+      )}
+
+      {(role === "ADMIN" || role === "AGENT_SDO") &&
+        (role === "ADMIN" || role === "CHEF_ATELIER" || role === "MAGASINIER") && <Divider sx={{ mb: 4 }} />}
+
+      {/* Production (Chef d'atelier / Direction) */}
+      {(role === "ADMIN" || role === "CHEF_ATELIER") && (
+        <Box sx={{ mb: 4 }}>
+          <EnTeteSection icone={<PrecisionManufacturingIcon color="primary" fontSize="small" />} titre="Production" />
+          <Grid container spacing={2.5} sx={{ mb: chargeParAtelier.length > 0 ? 2.5 : 0 }}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+              <CarteChiffre titre="Dossiers de fabrication" valeur={dossiers.length} icone={<AssignmentIcon sx={{ fontSize: 20 }} />} />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+              <CarteChiffre
+                titre="En cours de production"
+                valeur={dossiersEnCours.length}
+                icone={<PendingActionsIcon sx={{ fontSize: 20 }} />}
+                couleur="warning.main"
+              />
+            </Grid>
+          </Grid>
+
+          {/* Avancement par atelier (SPA / SPB) — EF-7.1 : jusqu'ici absent de l'écran */}
+          {chargeParAtelier.length > 0 && (
+            <Card sx={{ boxShadow: 1 }}>
+              <CardContent>
+                <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5 }}>
+                  Avancement par atelier
+                </Typography>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                  {chargeParAtelier.map((a) => (
+                    <Box
+                      key={a.atelier}
+                      sx={{
+                        flex: 1, p: 2, borderRadius: 1.5, border: "1px solid",
+                        borderColor: "divider", bgcolor: "grey.50",
+                      }}
+                    >
+                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                          {a.atelier}
+                        </Typography>
+                        <Chip
+                          label={`${a.enCours} en cours`}
+                          size="small"
+                          color={a.enCours > 0 ? "warning" : "default"}
+                          variant={a.enCours > 0 ? "filled" : "outlined"}
+                        />
+                      </Stack>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                        {a.total} dossier{a.total > 1 ? "s" : ""} au total
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </CardContent>
+            </Card>
+          )}
+        </Box>
+      )}
+
+      {(role === "ADMIN" || role === "CHEF_ATELIER") && (role === "ADMIN" || role === "MAGASINIER") && (
+        <Divider sx={{ mb: 4 }} />
+      )}
+
+      {/* Stock (Magasinier / Direction) */}
+      {(role === "ADMIN" || role === "MAGASINIER") && (
+        <Box sx={{ mb: 4 }}>
+          <EnTeteSection icone={<Inventory2Icon color="primary" fontSize="small" />} titre="Stock" />
+          <Grid container spacing={2.5}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+              <CarteChiffre
+                titre="Articles en alerte de stock"
+                valeur={articlesEnAlerte.length}
+                icone={<WarningAmberIcon sx={{ fontSize: 20 }} />}
+                couleur={articlesEnAlerte.length > 0 ? "error.main" : "success.main"}
+              />
+            </Grid>
+          </Grid>
+        </Box>
+      )}
+
+      {(role === "ADMIN" || role === "MAGASINIER") && role === "ADMIN" && <Divider sx={{ mb: 4 }} />}
+
+      {/* Rentabilité (Direction uniquement) — EF-7.1 : restitue tous les
+          indicateurs déjà calculés par le backend (TableauBordRentabiliteView),
+          y compris les écarts significatifs qui n'étaient pas affichés. */}
+      {role === "ADMIN" && rentabilite && (
+        <Box sx={{ mb: 4 }}>
+          <EnTeteSection icone={<AssessmentIcon color="primary" fontSize="small" />} titre="Rentabilité de la fabrication" />
+          <Grid container spacing={2.5}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+              <CarteChiffre
+                titre="Fiches de contrôle"
+                valeur={rentabilite.nombre_controles}
+                icone={<FactCheckIcon sx={{ fontSize: 20 }} />}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+              <CarteChiffre
+                titre="Dossiers bénéficiaires"
+                valeur={rentabilite.nombre_beneficiaires}
+                icone={<TrendingUpIcon sx={{ fontSize: 20 }} />}
+                couleur="success.main"
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+              <CarteChiffre
+                titre="Dossiers déficitaires"
+                valeur={rentabilite.nombre_deficitaires}
+                icone={<TrendingDownIcon sx={{ fontSize: 20 }} />}
+                couleur="error.main"
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+              <CarteChiffre
+                titre="À l'équilibre"
+                valeur={rentabilite.nombre_a_l_equilibre}
+                icone={<BalanceIcon sx={{ fontSize: 20 }} />}
+                couleur="text.secondary"
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+              <CarteChiffre
+                titre="Marge moyenne"
+                valeur={`${rentabilite.marge_moyenne_pourcentage}%`}
+                icone={<AssessmentIcon sx={{ fontSize: 20 }} />}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+              <CarteChiffre
+                titre="Écarts significatifs"
+                valeur={rentabilite.nombre_ecarts_significatifs}
+                icone={<WarningAmberIcon sx={{ fontSize: 20 }} />}
+                couleur={rentabilite.nombre_ecarts_significatifs > 0 ? "error.main" : "success.main"}
+              />
+            </Grid>
+          </Grid>
+        </Box>
+      )}
+
+      {/* Répartition des commandes par statut */}
+      {(role === "ADMIN" || role === "AGENT_SDO") && commandes.length > 0 && (
+        <Card sx={{ boxShadow: 1 }}>
+          <CardContent>
+            <EnTeteSection icone={<AssignmentIcon color="primary" fontSize="small" />} titre="Répartition des commandes par statut" />
             <Box sx={{ width: "100%", height: 300 }}>
               <ResponsiveContainer>
-                <BarChart data={donneesGraphique}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="statut" tick={{ fontSize: 12 }} />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
-                  <Bar dataKey="nombre" fill="#1565c0" radius={[4, 4, 0, 0]} />
+                <BarChart data={donneesGraphique} barCategoryGap="28%">
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={alpha("#000", 0.06)} />
+                  <XAxis dataKey="statut" tick={{ fontSize: 12, fill: "#616161" }} axisLine={{ stroke: "#e0e0e0" }} tickLine={false} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#616161" }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    cursor={{ fill: alpha("#1565c0", 0.06) }}
+                    contentStyle={{ borderRadius: 8, border: "1px solid #e0e0e0", fontSize: 13 }}
+                  />
+                  <Bar dataKey="nombre" radius={[4, 4, 0, 0]} maxBarSize={56}>
+                    {donneesGraphique.map((entree) => (
+                      <Cell
+                        key={entree.code}
+                        fill={HEX_PAR_NOM_COULEUR[COULEURS_STATUT_COMMANDE[entree.code]] || HEX_PAR_NOM_COULEUR.primary}
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </Box>
